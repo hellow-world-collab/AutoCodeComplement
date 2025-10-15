@@ -21,21 +21,41 @@
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.python</depends>
+    
     <!-- Extension points defined by the plugin.
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-extension-points.html -->
-    <!-- 注册Completion扩展 -->
     <extensions defaultExtensionNs="com.intellij">
+        <!-- 注册 LLM 代码补全扩展 -->
         <completion.contributor language="Python"
                                 implementationClass="com.system.demo.LLM.LLMCompletionContributor"/>
+        
+        <!-- 注册状态管理服务 -->
+        <applicationService serviceImplementation="com.system.demo.LLM.LLMCompletionSettings"/>
+        
+        <!-- 注册通知组 -->
+        <notificationGroup id="LLM Completion" displayType="BALLOON"/>
     </extensions>
 
-    <!-- 注册快捷键Action -->
+    <!-- 注册 Actions -->
     <actions>
+        <!-- 切换 LLM 补全的开关 -->
+        <action id="LLM.ToggleCompletion"
+                class="com.system.demo.LLM.ToggleLLMCompletionAction"
+                text="启用/禁用 LLM 代码补全"
+                description="切换是否使用 LLM 进行代码自动补全"
+                icon="AllIcons.Actions.IntentionBulb">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt shift L"/>
+        </action>
+        
+        <!-- 使用 LLM 改进选中的代码 -->
         <action id="LLM.EditSelection"
                 class="com.system.demo.LLM.EditSelectionAction"
-                text="Use LLM to Edit Selection"
-                description="Send selected code to LLM and replace with output">
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt L"/>
+                text="使用 LLM 改进选中代码"
+                description="将选中的代码发送给 LLM 进行优化，并预览差异后决定是否应用"
+                icon="AllIcons.Actions.RefactoringBulb">
+            <add-to-group group-id="EditorPopupMenu" anchor="first"/>
+            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt E"/>
         </action>
     </actions>
 </idea-plugin>
