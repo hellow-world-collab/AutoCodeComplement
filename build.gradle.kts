@@ -19,8 +19,8 @@ dependencies {
 // Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
 intellij {
     localPath.set("D:\\BaiduNetdiskDownload\\pycahrmPC\\PyCharm Community Edition 2019.3.5")
-
-    plugins.set(listOf(/* Plugin Dependencies */))
+    type.set("PY")
+//    plugins.set(listOf("python"))
 }
 
 tasks {

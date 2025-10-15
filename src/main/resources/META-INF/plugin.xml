@@ -21,21 +21,36 @@
          Read more: https://plugins.jetbrains.com/docs/intellij/plugin-compatibility.html -->
     <!-- 依赖Python模块 -->
     <depends>com.intellij.modules.platform</depends>
-    <depends>com.intellij.modules.python</depends>
 
     <!-- 注册补全扩展 -->
     <extensions defaultExtensionNs="com.intellij">
-        <completion.contributor language="Python"
-                                implementationClass="com.system.demo.LLM.LLMCompletionContributor"/>
+        <completion.contributor
+                implementationClass="com.system.demo.LLM.LLMCompletionContributor"/>
     </extensions>
 
-    <!-- 注册快捷键Action -->
     <actions>
-        <action id="LLM.EditSelection"
+        <!-- 切换 AI 补全 -->
+        <action id="ToggleAICompletion"
+                class="com.system.demo.LLM.ToggleLLMCompletionAction"
+                text="Toggle AI Completion"
+                description="启用/禁用 AI 自动补全">
+            <keyboard-shortcut first-keystroke="alt shift A" keymap="$default"/>
+        </action>
+
+        <!-- 选中代码发送至大模型 -->
+        <action id="EditSelectionWithAI"
                 class="com.system.demo.LLM.EditSelectionAction"
-                text="Use LLM to Edit Selection"
-                description="Send selected code to LLM and replace with output">
-            <keyboard-shortcut keymap="$default" first-keystroke="ctrl alt L"/>
+                text="Edit Selection with AI"
+                description="使用大模型改写选中代码">
+            <keyboard-shortcut first-keystroke="alt shift E" keymap="$default"/>
+        </action>
+
+        <!-- 应用修改 -->
+        <action id="ApplyAIEdit"
+                class="com.system.demo.LLM.EditSelectionAction$ApplyEditAction"
+                text="Apply AI Edit"
+                description="应用 AI 修改">
+            <keyboard-shortcut first-keystroke="alt shift R" keymap="$default"/>
         </action>
     </actions>
 </idea-plugin>
