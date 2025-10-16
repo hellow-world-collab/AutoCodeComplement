@@ -22,6 +22,7 @@
     <!-- 依赖Python模块 -->
     <depends>com.intellij.modules.platform</depends>
 
+
     <!-- 注册补全扩展 -->
     <extensions defaultExtensionNs="com.intellij">
         <completion.contributor

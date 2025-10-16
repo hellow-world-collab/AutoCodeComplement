@@ -20,7 +20,6 @@ dependencies {
 intellij {
     localPath.set("D:\\BaiduNetdiskDownload\\pycahrmPC\\PyCharm Community Edition 2019.3.5")
     type.set("PY")
-//    plugins.set(listOf("python"))
 }
 
 tasks {
