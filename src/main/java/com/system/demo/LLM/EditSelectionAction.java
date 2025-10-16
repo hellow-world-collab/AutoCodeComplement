@@ -1,5 +1,9 @@
 package com.system.demo.LLM;
 
+import com.intellij.diff.DiffContentFactory;
+import com.intellij.diff.DiffManager;
+import com.intellij.diff.contents.DocumentContent;
+import com.intellij.diff.requests.SimpleDiffRequest;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
@@ -17,13 +21,16 @@ import org.jetbrains.annotations.NotNull;
 public class EditSelectionAction extends AnAction {
     private static String lastSuggestion;
     private static String lastOriginal;
+    private static int lastSelectionStart;
+    private static int lastSelectionEnd;
+    private static Editor lastEditor;
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
         Project project = e.getProject();
         Editor editor = e.getData(CommonDataKeys.EDITOR);
         PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
-        if (editor == null || file == null) return;
+        if (editor == null || file == null || project == null) return;
 
         String selected = EditorContextUtils.getSelectedText(editor);
         if (selected == null || selected.isEmpty()) {
@@ -31,50 +38,112 @@ public class EditSelectionAction extends AnAction {
             return;
         }
 
-        String prompt = EditorContextUtils.buildContextPrompt(file, selected);
-        String suggestion = LLMClient.queryLLM(prompt);
-        if (suggestion == null || suggestion.isEmpty()) {
-            Messages.showWarningDialog(project, "模型未返回结果。", "提示");
-            return;
-        }
+        // 保存选中位置
+        SelectionModel selectionModel = editor.getSelectionModel();
+        lastSelectionStart = selectionModel.getSelectionStart();
+        lastSelectionEnd = selectionModel.getSelectionEnd();
+        lastEditor = editor;
 
-        lastOriginal = selected;
-        lastSuggestion = suggestion;
+        // 显示进度提示
+        Messages.showInfoMessage(project, "正在分析代码，请稍候...", "AI 分析");
 
-        // 弹窗显示差异并让用户确认
-        String message = "原始代码:\n" + selected + "\n\nAI 修改建议:\n" + suggestion;
-        int result = Messages.showYesNoDialog(project, message, "AI 修改建议", "应用修改", "取消", Messages.getQuestionIcon());
+        // 在后台线程调用 LLM
+        final String selectedText = selected;
+        new Thread(() -> {
+            String prompt = EditorContextUtils.buildContextPrompt(file, selectedText);
+            String suggestion = LLMClient.queryLLM(prompt);
+            
+            if (suggestion == null || suggestion.isEmpty()) {
+                Messages.showWarningDialog(project, "模型未返回结果。", "提示");
+                return;
+            }
 
-        if (result == Messages.YES) {
-            applyEdit(editor);
-        }
+            // 清理建议内容
+            String cleanedSuggestion = cleanSuggestion(suggestion);
+
+            lastOriginal = selectedText;
+            lastSuggestion = cleanedSuggestion;
+
+            // 在 UI 线程显示差异对比窗口
+            com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
+                showDiffDialog(project, selectedText, cleanedSuggestion);
+            });
+        }).start();
+    }
+
+    /**
+     * 清理 LLM 返回的建议内容
+     */
+    private String cleanSuggestion(String suggestion) {
+        // 去除 markdown 代码块标记
+        suggestion = suggestion.replaceAll("```[a-zA-Z]*\\n?", "");
+        suggestion = suggestion.replaceAll("```", "");
+        
+        // 去除前后空白
+        suggestion = suggestion.trim();
+        
+        return suggestion;
+    }
+
+    /**
+     * 显示差异对比对话框
+     */
+    private void showDiffDialog(Project project, String original, String modified) {
+        DiffContentFactory contentFactory = DiffContentFactory.getInstance();
+        
+        DocumentContent content1 = contentFactory.create(project, original);
+        DocumentContent content2 = contentFactory.create(project, modified);
+
+        SimpleDiffRequest request = new SimpleDiffRequest(
+                "AI 代码修改建议对比",
+                content1,
+                content2,
+                "原始代码",
+                "AI 修改建议"
+        );
+
+        DiffManager.getInstance().showDiff(project, request);
     }
 
     /**
      * 快捷键确认替换或弹窗确认应用
      */
-    public static void applyEdit(Editor editor) {
-        if (editor == null || lastSuggestion == null) return;
+    public static void applyEdit(Project project) {
+        if (lastEditor == null || lastSuggestion == null) {
+            if (project != null) {
+                Messages.showWarningDialog(project, "没有可应用的 AI 修改建议。\n请先使用 Shift+Alt+E 分析代码。", "提示");
+            }
+            return;
+        }
 
-        SelectionModel sel = editor.getSelectionModel();
-        Document doc = editor.getDocument();
-        WriteCommandAction.runWriteCommandAction(editor.getProject(), () -> {
-            doc.replaceString(sel.getSelectionStart(), sel.getSelectionEnd(), lastSuggestion);
+        Document doc = lastEditor.getDocument();
+        WriteCommandAction.runWriteCommandAction(project, () -> {
+            doc.replaceString(lastSelectionStart, lastSelectionEnd, lastSuggestion);
         });
 
+        // 清空状态
+        String appliedSuggestion = lastSuggestion;
         lastSuggestion = null;
         lastOriginal = null;
-        Messages.showInfoMessage(editor.getProject(), "已应用 AI 修改。", "完成");
+        lastEditor = null;
+        
+        Messages.showInfoMessage(project, "已成功应用 AI 修改建议！", "完成");
     }
 
     /**
-     * 也可以绑定快捷键调用这个方法
+     * 绑定 Shift+Alt+R 快捷键应用修改
      */
     public static class ApplyEditAction extends AnAction {
         @Override
         public void actionPerformed(@NotNull AnActionEvent e) {
-            Editor editor = e.getData(CommonDataKeys.EDITOR);
-            applyEdit(editor);
+            Project project = e.getProject();
+            applyEdit(project);
+        }
+
+        @Override
+        public void update(@NotNull AnActionEvent e) {
+            // 只在有待应用的修改时启用此操作
+            e.getPresentation().setEnabled(lastSuggestion != null && lastEditor != null);
         }
     }
 }

@@ -14,19 +14,27 @@ import java.io.IOException;
  * 调用大模型的 HTTP 客户端
  */
 public class LLMClient {
-    private static final String API_URL = "https://api.openai.com/v1/chat/completions";
-    private static final String API_KEY = "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";
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
 
     public static String queryLLM(String prompt) {
-        if (API_KEY == null || API_KEY.isEmpty()) {
-            return "错误：未设置 OPENAI_API_KEY 环境变量。";
+        LLMSettings settings = LLMSettings.getInstance();
+        
+        String apiKey = settings.apiKey;
+        String apiUrl = settings.apiUrl;
+        String model = settings.model;
+
+        if (apiKey == null || apiKey.isEmpty()) {
+            return "错误：未设置 API Key。请在设置中配置。";
+        }
+
+        if (apiUrl == null || apiUrl.isEmpty()) {
+            apiUrl = "https://api.openai.com/v1/chat/completions";
         }
 
         OkHttpClient client = new OkHttpClient();
 
         JSONObject json = new JSONObject();
-        json.put("model", "gpt-4o-mini");
+        json.put("model", model != null && !model.isEmpty() ? model : "gpt-4o-mini");
 
         JSONArray messages = new JSONArray();
         messages.put(new JSONObject().put("role", "system").put("content", "你是一个专业的代码助手。"));
@@ -35,8 +43,8 @@ public class LLMClient {
 
         RequestBody body = RequestBody.create(json.toString(), JSON);
         Request request = new Request.Builder()
-                .url(API_URL)
-                .addHeader("Authorization", "Bearer " + API_KEY)
+                .url(apiUrl)
+                .addHeader("Authorization", "Bearer " + apiKey)
                 .addHeader("Content-Type", "application/json")
                 .post(body)
                 .build();
