@@ -10,6 +10,10 @@ public class LLMInlineCompletionManager {
     private static Inlay<?> currentInlay;
     private static String currentSuggestion = "";
 
+    public static boolean hasSuggestion() {
+        return currentInlay != null && currentInlay.isValid() && !currentSuggestion.isEmpty();
+    }
+
     public static void showInlineSuggestion(Editor editor, String suggestion) {
         ApplicationManager.getApplication().invokeLater(() -> {
             removeInlineSuggestion();
@@ -22,10 +26,11 @@ public class LLMInlineCompletionManager {
     }
 
     public static void removeInlineSuggestion() {
-        if (currentInlay != null && !currentInlay.isValid()) {
+        if (currentInlay != null && currentInlay.isValid()) {
             currentInlay.dispose();
-            currentInlay = null;
         }
+        currentInlay = null;
+        currentSuggestion = "";
     }
 
     public static void accept(Editor editor) {

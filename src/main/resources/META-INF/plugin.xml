@@ -27,7 +27,20 @@
     <extensions defaultExtensionNs="com.intellij">
         <completion.contributor
                 implementationClass="com.system.demo.LLM.LLMCompletionContributor"/>
+        
+        <!-- 注册设置页面 -->
+        <applicationService serviceImplementation="com.system.demo.LLM.LLMSettings"/>
+        <applicationConfigurable instance="com.system.demo.LLM.LLMSettingsConfigurable"
+                                 id="LLMSettings"
+                                 displayName="AI Code Completion"/>
     </extensions>
+
+    <!-- 注册项目组件 -->
+    <project-components>
+        <component>
+            <implementation-class>com.system.demo.LLM.LLMPluginComponent</implementation-class>
+        </component>
+    </project-components>
 
     <actions>
         <!-- 切换 AI 补全 -->
