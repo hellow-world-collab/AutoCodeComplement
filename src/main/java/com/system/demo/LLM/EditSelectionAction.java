@@ -111,7 +111,7 @@ public class EditSelectionAction extends AnAction {
     public static void applyEdit(Project project) {
         if (lastEditor == null || lastSuggestion == null) {
             if (project != null) {
-                Messages.showWarningDialog(project, "没有可应用的 AI 修改建议。\n请先使用 Shift+Alt+E 分析代码。", "提示");
+                Messages.showWarningDialog(project, "没有可应用的 AI 修改建议。\n请先使用 Shift+Alt+1 分析代码。", "提示");
             }
             return;
         }

@@ -56,7 +56,7 @@
                 class="com.system.demo.LLM.EditSelectionAction"
                 text="Edit Selection with AI"
                 description="使用大模型改写选中代码">
-            <keyboard-shortcut first-keystroke="alt shift E" keymap="$default"/>
+            <keyboard-shortcut first-keystroke="shift alt 1" keymap="$default"/>
         </action>
 
         <!-- 应用修改 -->
@@ -64,7 +64,7 @@
                 class="com.system.demo.LLM.EditSelectionAction$ApplyEditAction"
                 text="Apply AI Edit"
                 description="应用 AI 修改">
-            <keyboard-shortcut first-keystroke="alt shift R" keymap="$default"/>
+            <keyboard-shortcut first-keystroke="shift alt 2" keymap="$default"/>
         </action>
     </actions>
 </idea-plugin>

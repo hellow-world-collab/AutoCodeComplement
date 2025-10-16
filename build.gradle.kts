@@ -16,24 +16,23 @@ dependencies {
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
 }
 // Configure Gradle IntelliJ Plugin
-// Read more: https://plugins.jetbrains.com/docs/intellij/tools-gradle-intellij-plugin.html
 intellij {
     // 使用远程版本而不是本地路径
-    version.set("2019.3.5")
+//    version.set("2019.3.5")
     type.set("PY")
     // 如果需要使用本地路径，请取消下面的注释并设置正确的路径
-    // localPath.set("D:\\BaiduNetdiskDownload\\pycahrmPC\\PyCharm Community Edition 2019.3.5")
+     localPath.set("D:\\BaiduNetdiskDownload\\pycahrmPC\\PyCharm Community Edition 2019.3.5")
 }
 
 tasks {
     // Set the JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "1.8"
-        targetCompatibility = "1.8"
+        sourceCompatibility = "11"
+        targetCompatibility = "11"
         options.encoding = "UTF-8"
     }
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "1.8"
+        kotlinOptions.jvmTarget = "11"
     }
 
     withType<JavaExec> {

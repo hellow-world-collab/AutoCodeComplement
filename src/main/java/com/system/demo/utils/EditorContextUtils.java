@@ -24,7 +24,7 @@ public class EditorContextUtils {
                 + fileContent
                 + "\n\n请参考整个上下文，改进下面选中的代码片段：\n"
                 + selectedText
-                + "\n\n要求：保持逻辑一致，但提高可读性和性能。";
+                + "\n\n要求：保持逻辑一致，但提高可读性和性能。（只返回代码，不要解释）";
     }
 
     // 获取文件名

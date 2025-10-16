@@ -41,36 +41,45 @@ public class LLMTypedActionHandler implements TypedActionHandler {
 
         // 在后台线程触发补全
         ApplicationManager.getApplication().executeOnPooledThread(() -> {
-            PsiFile psiFile = PsiDocumentManager.getInstance(editor.getProject())
-                    .getPsiFile(editor.getDocument());
-            if (psiFile == null) return;
+            // 先在 readAction 内安全读取 PSI 和光标
+            final String[] fileContentHolder = new String[1];
+            final int[] offsetHolder = new int[1];
 
-            String fileContent = psiFile.getText();
-            int offset = editor.getCaretModel().getOffset();
-            
-            // 获取光标前的上下文
+            ApplicationManager.getApplication().runReadAction(() -> {
+                PsiFile psiFile = PsiDocumentManager.getInstance(editor.getProject())
+                        .getPsiFile(editor.getDocument());
+                if (psiFile == null) return;
+
+                fileContentHolder[0] = psiFile.getText();
+                offsetHolder[0] = editor.getCaretModel().getOffset();
+            });
+
+            String fileContent = fileContentHolder[0];
+            if (fileContent == null) return;
+
+            int offset = offsetHolder[0];
             String context = fileContent.substring(0, Math.min(offset, fileContent.length()));
-            
-            // 只在合适的位置触发（例如输入字母、数字、空格等）
+
             if (!shouldTriggerCompletion(charTyped, context)) {
                 return;
             }
 
-            // 构建 prompt
-            String prompt = "请根据以下代码上下文，预测用户接下来可能输入的代码（只返回补全内容，不要解释）：\n\n" + context + "\n\n请补全：";
+            String prompt = "请根据以下代码上下文，预测用户接下来可能输入的代码（只返回补全内容，不要解释）：\n\n"
+                    + context + "\n\n请补全：";
 
             String suggestion = LLMClient.queryLLM(prompt);
             if (suggestion != null && !suggestion.isEmpty()) {
-                // 清理返回的内容（去除 markdown 代码块等）
                 suggestion = cleanSuggestion(suggestion);
                 if (!suggestion.isEmpty()) {
                     String finalSuggestion = suggestion;
+                    // 回到 UI 主线程显示
                     ApplicationManager.getApplication().invokeLater(() -> {
                         LLMInlineCompletionManager.showInlineSuggestion(editor, finalSuggestion);
                     });
                 }
             }
         });
+
     }
 
     /**
