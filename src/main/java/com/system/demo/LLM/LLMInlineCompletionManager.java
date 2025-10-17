@@ -15,9 +15,12 @@ public class LLMInlineCompletionManager {
     }
 
     public static void showInlineSuggestion(Editor editor, String suggestion) {
+        // 直接在调用线程中移除旧建议，提高响应速度
+        removeInlineSuggestion();
+        
+        if (suggestion == null || suggestion.isEmpty()) return;
+        
         ApplicationManager.getApplication().invokeLater(() -> {
-            removeInlineSuggestion();
-            if (suggestion == null || suggestion.isEmpty()) return;
             currentSuggestion = suggestion;
             int offset = editor.getCaretModel().getOffset();
             InlayModel model = editor.getInlayModel();
