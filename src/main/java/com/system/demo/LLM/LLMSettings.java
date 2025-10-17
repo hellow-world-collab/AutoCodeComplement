@@ -20,7 +20,10 @@ public class LLMSettings implements PersistentStateComponent<LLMSettings> {
     public String apiKey = "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";
     public String model = "gpt-4o-mini";
     public int triggerDelayMs = 500;
-    public int maxSuggestionLength = 150;
+    public int maxSuggestionLength = 100;
+    public int maxContextLength = 1500;
+    public boolean enableCache = true;
+    public int cacheTimeoutMinutes = 5;
 
     public static LLMSettings getInstance() {
         return ServiceManager.getService(LLMSettings.class);

@@ -17,6 +17,9 @@ public class LLMSettingsConfigurable implements Configurable {
     private JTextField modelField;
     private JTextField triggerDelayField;
     private JTextField maxLengthField;
+    private JTextField maxContextLengthField;
+    private JCheckBox enableCacheCheckBox;
+    private JTextField cacheTimeoutField;
     private JPanel mainPanel;
 
     @Nls
@@ -93,9 +96,45 @@ public class LLMSettingsConfigurable implements Configurable {
         maxLengthField = new JTextField(String.valueOf(settings.maxSuggestionLength), 40);
         mainPanel.add(maxLengthField, gbc);
 
-        // 说明
+        // Max Context Length
         gbc.gridx = 0;
         gbc.gridy = 5;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        mainPanel.add(new JLabel("最大上下文长度:"), gbc);
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        maxContextLengthField = new JTextField(String.valueOf(settings.maxContextLength), 40);
+        mainPanel.add(maxContextLengthField, gbc);
+
+        // Enable Cache
+        gbc.gridx = 0;
+        gbc.gridy = 6;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        mainPanel.add(new JLabel("启用缓存:"), gbc);
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        enableCacheCheckBox = new JCheckBox("启用响应缓存", settings.enableCache);
+        mainPanel.add(enableCacheCheckBox, gbc);
+
+        // Cache Timeout
+        gbc.gridx = 0;
+        gbc.gridy = 7;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
+        mainPanel.add(new JLabel("缓存超时 (分钟):"), gbc);
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
+        cacheTimeoutField = new JTextField(String.valueOf(settings.cacheTimeoutMinutes), 40);
+        mainPanel.add(cacheTimeoutField, gbc);
+
+        // 说明
+        gbc.gridx = 0;
+        gbc.gridy = 8;
         gbc.gridwidth = 2;
         JLabel infoLabel = new JLabel("<html><i>提示：修改设置后需要重启 IDE 才能生效</i></html>");
         mainPanel.add(infoLabel, gbc);
@@ -110,7 +149,10 @@ public class LLMSettingsConfigurable implements Configurable {
                 !apiKeyField.getText().equals(settings.apiKey) ||
                 !modelField.getText().equals(settings.model) ||
                 !triggerDelayField.getText().equals(String.valueOf(settings.triggerDelayMs)) ||
-                !maxLengthField.getText().equals(String.valueOf(settings.maxSuggestionLength));
+                !maxLengthField.getText().equals(String.valueOf(settings.maxSuggestionLength)) ||
+                !maxContextLengthField.getText().equals(String.valueOf(settings.maxContextLength)) ||
+                enableCacheCheckBox.isSelected() != settings.enableCache ||
+                !cacheTimeoutField.getText().equals(String.valueOf(settings.cacheTimeoutMinutes));
     }
 
     @Override
@@ -123,6 +165,9 @@ public class LLMSettingsConfigurable implements Configurable {
         try {
             settings.triggerDelayMs = Integer.parseInt(triggerDelayField.getText());
             settings.maxSuggestionLength = Integer.parseInt(maxLengthField.getText());
+            settings.maxContextLength = Integer.parseInt(maxContextLengthField.getText());
+            settings.enableCache = enableCacheCheckBox.isSelected();
+            settings.cacheTimeoutMinutes = Integer.parseInt(cacheTimeoutField.getText());
         } catch (NumberFormatException e) {
             throw new ConfigurationException("请输入有效的数字");
         }
@@ -136,5 +181,8 @@ public class LLMSettingsConfigurable implements Configurable {
         modelField.setText(settings.model);
         triggerDelayField.setText(String.valueOf(settings.triggerDelayMs));
         maxLengthField.setText(String.valueOf(settings.maxSuggestionLength));
+        maxContextLengthField.setText(String.valueOf(settings.maxContextLength));
+        enableCacheCheckBox.setSelected(settings.enableCache);
+        cacheTimeoutField.setText(String.valueOf(settings.cacheTimeoutMinutes));
     }
 }

@@ -25,9 +25,6 @@
 
     <!-- 注册补全扩展 -->
     <extensions defaultExtensionNs="com.intellij">
-        <completion.contributor
-                implementationClass="com.system.demo.LLM.LLMCompletionContributor"/>
-        
         <!-- 注册设置页面 -->
         <applicationService serviceImplementation="com.system.demo.LLM.LLMSettings"/>
         <applicationConfigurable instance="com.system.demo.LLM.LLMSettingsConfigurable"

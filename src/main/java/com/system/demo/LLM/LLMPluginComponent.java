@@ -2,6 +2,7 @@ package com.system.demo.LLM;
 
 import com.intellij.openapi.actionSystem.IdeActions;
 import com.intellij.openapi.components.ProjectComponent;
+import com.intellij.openapi.editor.EditorFactory;
 import com.intellij.openapi.editor.actionSystem.EditorActionHandler;
 import com.intellij.openapi.editor.actionSystem.EditorActionManager;
 import com.intellij.openapi.editor.actionSystem.TypedAction;
@@ -16,6 +17,7 @@ public class LLMPluginComponent implements ProjectComponent {
     private final Project project;
     private EditorActionHandler originalTabHandler;
     private TypedActionHandler originalTypedHandler;
+    private LLMDocumentListener documentListener;
 
     public LLMPluginComponent(Project project) {
         this.project = project;
@@ -32,6 +34,10 @@ public class LLMPluginComponent implements ProjectComponent {
         TypedAction typedAction = TypedAction.getInstance();
         originalTypedHandler = typedAction.getHandler();
         typedAction.setupHandler(new LLMTypedActionHandler(originalTypedHandler));
+
+        // 注册文档监听器
+        documentListener = new LLMDocumentListener();
+        EditorFactory.getInstance().getEventMulticaster().addDocumentListener(documentListener, project);
     }
 
     @Override
@@ -45,6 +51,11 @@ public class LLMPluginComponent implements ProjectComponent {
         TypedAction typedAction = TypedAction.getInstance();
         if (originalTypedHandler != null) {
             typedAction.setupHandler(originalTypedHandler);
+        }
+
+        // 移除文档监听器
+        if (documentListener != null) {
+            EditorFactory.getInstance().getEventMulticaster().removeDocumentListener(documentListener);
         }
     }
 

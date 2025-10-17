@@ -35,16 +35,18 @@ public class LLMClient {
 
         OkHttpClient client = new OkHttpClient.Builder()
                 .proxy(proxy) // 如果不需要代理，可删除这一行
-                .connectTimeout(Duration.ofSeconds(30))
-                .readTimeout(Duration.ofSeconds(60))
-                .writeTimeout(Duration.ofSeconds(60))
+                .connectTimeout(Duration.ofSeconds(5))
+                .readTimeout(Duration.ofSeconds(10))
+                .writeTimeout(Duration.ofSeconds(5))
                 .build();
 
         JSONObject json = new JSONObject();
         json.put("model", model != null && !model.isEmpty() ? model : "gpt-4o-mini");
+        json.put("max_tokens", 100); // 限制响应长度
+        json.put("temperature", 0.1); // 降低随机性，提高一致性
 
         JSONArray messages = new JSONArray();
-        messages.put(new JSONObject().put("role", "system").put("content", "你是一个专业的代码助手。"));
+        messages.put(new JSONObject().put("role", "system").put("content", "你是一个专业的代码助手。请只返回代码补全内容，不要包含任何解释或注释。"));
         messages.put(new JSONObject().put("role", "user").put("content", prompt));
         json.put("messages", messages);
 

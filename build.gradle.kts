@@ -18,21 +18,21 @@ dependencies {
 // Configure Gradle IntelliJ Plugin
 intellij {
     // 使用远程版本而不是本地路径
-//    version.set("2019.3.5")
+    version.set("2019.3.5")
     type.set("PY")
     // 如果需要使用本地路径，请取消下面的注释并设置正确的路径
-     localPath.set("D:\\BaiduNetdiskDownload\\pycahrmPC\\PyCharm Community Edition 2019.3.5")
+    // localPath.set("D:\\BaiduNetdiskDownload\\pycahrmPC\\PyCharm Community Edition 2019.3.5")
 }
 
 tasks {
     // Set the JVM compatibility versions
     withType<JavaCompile> {
-        sourceCompatibility = "11"
-        targetCompatibility = "11"
+        sourceCompatibility = "1.8"
+        targetCompatibility = "1.8"
         options.encoding = "UTF-8"
     }
     withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
-        kotlinOptions.jvmTarget = "11"
+        kotlinOptions.jvmTarget = "1.8"
     }
 
     withType<JavaExec> {
