@@ -2,12 +2,12 @@
 
 ## 🎯 快捷键 | Shortcuts
 
-| 快捷键 | 功能 | Function |
-|--------|------|----------|
+| 快捷键               | 功能 | Function |
+|-------------------|------|----------|
 | `Shift + Alt + A` | 开启/关闭 AI 补全 | Toggle AI Completion |
-| `Tab` | 接受补全建议 | Accept Suggestion |
-| `Shift + Alt + E` | 分析选中代码 | Analyze Selected Code |
-| `Shift + Alt + R` | 应用 AI 修改 | Apply AI Changes |
+| `Tab`             | 接受补全建议 | Accept Suggestion |
+| `Shift + Alt + 1` | 分析选中代码 | Analyze Selected Code |
+| `Shift + Alt + 2` | 应用 AI 修改 | Apply AI Changes |
 
 ## 📦 安装步骤 | Installation
 
@@ -52,9 +52,9 @@ def calculate_sum(a, b):
 for i in range(10):
     result.append(i * 2)
 
-# 2. 按 Shift+Alt+E | Press Shift+Alt+E
+# 2. 按 Shift+Alt+1 | Press Shift+Alt+1
 # 3. 查看 Diff 对比 | View Diff
-# 4. 按 Shift+Alt+R 应用 | Press Shift+Alt+R to apply
+# 4. 按 Shift+Alt+2 应用 | Press Shift+Alt+2 to apply
 ```
 
 ## 🔧 故障排查 | Troubleshooting
