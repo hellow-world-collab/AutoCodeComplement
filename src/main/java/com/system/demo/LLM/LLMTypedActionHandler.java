@@ -223,102 +223,79 @@ public class LLMTypedActionHandler implements TypedActionHandler {
      * 增强的上下文获取
      */
     private EnhancedContextInfo getEnhancedContext(String fileContent, int offset, Editor editor) {
-        // 获取当前行信息
+        int totalLength = fileContent.length();
+        int windowSize = 500; // 上下文窗口（字符数）
+        int start = Math.max(0, offset - windowSize);
+        int end = Math.min(totalLength, offset + 200);
+
+        String windowText = fileContent.substring(start, end);
+
+        // 精准方法上下文
+        String methodContext = extractMethodContext(fileContent, offset);
+        String classContext = extractClassContext(fileContent, offset);
+
+        // 当前行信息
         int lineStart = fileContent.lastIndexOf('\n', offset - 1) + 1;
         int lineEnd = fileContent.indexOf('\n', offset);
         if (lineEnd == -1) lineEnd = fileContent.length();
-
         String currentLine = fileContent.substring(lineStart, lineEnd);
         String beforeCursor = fileContent.substring(lineStart, offset);
         String afterCursor = fileContent.substring(offset, lineEnd);
 
-        // 获取前几行作为上下文
-        String previousLines = getPreviousLines(fileContent, lineStart, 3);
-
-        // 获取方法级上下文
-        String methodContext = getMethodLevelContext(fileContent, offset);
-
         return new EnhancedContextInfo(
-                previousLines,
+                windowText,
                 beforeCursor,
                 afterCursor,
                 currentLine,
-                methodContext
+                methodContext + "\n" + classContext
         );
     }
 
-    private String getPreviousLines(String content, int currentLineStart, int lineCount) {
-        if (currentLineStart == 0) return "";
-
-        int start = currentLineStart;
-        for (int i = 0; i < lineCount; i++) {
-            int prevNewline = content.lastIndexOf('\n', start - 2); // -2 跳过当前行的换行
-            if (prevNewline <= 0) break;
-            start = prevNewline + 1;
-        }
-
-        return content.substring(start, currentLineStart).trim();
-    }
-
-    private String getMethodLevelContext(String content, int offset) {
-        // 简化的方法上下文获取
-        int methodStart = findMethodStart(content, offset);
-        if (methodStart >= 0) {
-            return content.substring(methodStart, offset);
-        }
-        return getRecentLines(content, offset, 10); // 最近10行作为fallback
-    }
-
-    private String getRecentLines(String content, int offset, int lineCount) {
-        int start = offset;
-        for (int i = 0; i < lineCount && start > 0; i++) {
-            start = content.lastIndexOf('\n', start - 1);
-            if (start == -1) {
-                start = 0;
+    // 识别当前方法上下文
+    private String extractMethodContext(String content, int offset) {
+        int methodStart = -1;
+        int braceBalance = 0;
+        for (int i = offset; i > 0; i--) {
+            char c = content.charAt(i - 1);
+            if (c == '{') braceBalance--;
+            else if (c == '}') braceBalance++;
+            if (braceBalance < 0) {
+                methodStart = i - 1;
                 break;
             }
         }
-        return content.substring(start, offset);
+        if (methodStart < 0) return "";
+        int sigStart = Math.max(0, content.lastIndexOf('\n', methodStart - 1));
+        return content.substring(sigStart, Math.min(offset, content.length()));
     }
 
-    private int findMethodStart(String content, int offset) {
-        // 从后往前查找方法开始
-        String[] methodKeywords = {"public", "private", "protected", "void", "int", "String", "boolean"};
-
-        for (String keyword : methodKeywords) {
-            int lastIndex = content.lastIndexOf(keyword + " ", offset);
-            if (lastIndex >= 0) {
-                String remaining = content.substring(lastIndex, Math.min(offset, content.length()));
-                if (remaining.contains("(") && !remaining.contains(";")) {
-                    return lastIndex;
-                }
-            }
-        }
-        return -1;
+    // 识别类级上下文
+    private String extractClassContext(String content, int offset) {
+        int classStart = content.lastIndexOf("class ", offset);
+        if (classStart == -1) return "";
+        int classHeaderEnd = content.indexOf("{", classStart);
+        if (classHeaderEnd == -1) classHeaderEnd = Math.min(offset, content.length());
+        return content.substring(classStart, classHeaderEnd);
     }
+
 
     /**
      * 构建增强的Prompt
      */
     private String buildEnhancedPrompt(EnhancedContextInfo context, char lastChar, String fileType) {
         return String.format(
-                "你是一个%s代码专家，基于以下上下文预测最合适的代码补全：\n\n" +
-                        "=== 前几行代码 ===\n%s\n\n" +
-                        "=== 当前行（光标前） ===\n%s|\n\n" +
-                        "=== 当前行（光标后） ===\n%s\n\n" +
-                        "=== 方法上下文 ===\n%s\n\n" +
-                        "最后输入字符：'%s'\n\n" +
-                        "要求：\n" +
-                        "1. 只返回需要在光标处插入的代码\n" +
-                        "2. 保持代码风格一致\n" +
-                        "3. 考虑代码逻辑连贯性\n" +
-                        "4. 如果是行首，预测整行代码\n" +
-                        "5. 保持简洁（通常1-2行）\n\n" +
-                        "补全内容：",
-                fileType, context.previousLines, context.beforeCursor,
-                context.afterCursor, context.methodContext, lastChar
+                "你是一个专业的 %s 代码补全助手。\n" +
+                        "当前文件类型: %s\n" +
+                        "用户最后输入字符: '%s'\n\n" +
+                        "==== 当前上下文（光标附近） ====\n%s\n\n" +
+                        "==== 方法上下文 ====\n%s\n\n" +
+                        "==== 当前行 ====\n%s|\n\n" +
+                        "请仅输出 **应在光标处插入的补全内容**，不要重复上下文或添加解释。",
+                fileType.toUpperCase(), fileType, lastChar,
+                context.previousLines, context.methodContext, context.beforeCursor
         );
     }
+
 
     private String generateContextKey(EnhancedContextInfo context, char lastChar) {
         // 使用更精细的上下文键

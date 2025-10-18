@@ -9,7 +9,6 @@ import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -25,7 +24,6 @@ public class LLMClient {
     private static volatile Call currentCall = null;
 
     // 改进的缓存：基于上下文哈希
-    private static final Map<String, CacheEntry> cache = new LinkedHashMap<>();
     private static final int MAX_CACHE_SIZE = 100; // 可以设置更大，因为存储开销小了
 
     private static class CacheEntry {
@@ -57,78 +55,74 @@ public class LLMClient {
                 .build();
     }
 
-    /**
-     * 生成上下文哈希键
-     */
+    // 缓存部分
+    private static final Map<String, CacheEntry> cache = new LinkedHashMap<>(MAX_CACHE_SIZE, 0.75f, true);
+    private static final Map<String, CacheEntry> sessionCache = new LinkedHashMap<>(50, 0.75f, true); // 跨会话缓存
+
     private static String generateContextKey(String context) {
-        // 归一化处理
+        if (context == null) return "empty";
+
+        // 预处理：去除注释和多余空格
         String normalized = context
-                .replaceAll("\\s+", " ")           // 合并空白
-                .replaceAll("//[^\\n]*", "")       // 移除单行注释
+                .replaceAll("/\\*.*?\\*/", "")
+                .replaceAll("//.*", "")
+                .replaceAll("\\s+", " ")
                 .trim();
 
-        // 取最近有意义的代码段（最后150字符通常足够）
-        int start = Math.max(0, normalized.length() - 150);
+        // 提取特征：方法名、类名、操作符
+        String features = "";
+        if (normalized.contains("class ")) {
+            features += "class:";
+        }
+        if (normalized.contains("public") || normalized.contains("private")) {
+            features += "scope:";
+        }
+        if (normalized.contains("(") && normalized.contains(")")) {
+            features += "func:";
+        }
+        if (normalized.contains("=")) {
+            features += "assign:";
+        }
+
+        // 取光标前最后300字符提高准确性
+        int start = Math.max(0, normalized.length() - 300);
         String recent = normalized.substring(start);
 
-        // 提取代码结构特征，提高缓存命中率
-        String features = extractCodeFeatures(recent);
+        // 使用稳定哈希（避免不同 JVM 导致的 hashCode 差异）
+        String stableHash = Integer.toHexString(recent.getBytes().hashCode());
 
-        return features + "_" + Integer.toHexString(recent.hashCode());
+        return features + "_" + stableHash;
     }
 
-    /**
-     * 提取代码特征
-     */
-    private static String extractCodeFeatures(String code) {
-        if (code.contains(".") && !code.endsWith(".")) return "method";
-        if (code.contains("new ")) return "new";
-        if (code.contains("if (")) return "if";
-        if (code.contains("for (")) return "for";
-        if (code.contains("while (")) return "while";
-        if (code.contains("=")) return "assign";
-        if (code.trim().endsWith(".")) return "dot";
-        return "code";
-    }
-
-    /**
-     * 从缓存获取建议
-     */
     private static String getCachedSuggestion(String context) {
         String key = generateContextKey(context);
+
         CacheEntry entry = cache.get(key);
         if (entry != null && !entry.isExpired()) {
-            System.out.println("缓存命中: " + key);
             return entry.result;
         }
-        // 移除过期条目
-        if (entry != null && entry.isExpired()) {
-            cache.remove(key);
+
+        // 二级缓存命中（最近会话）
+        entry = sessionCache.get(key);
+        if (entry != null && !entry.isExpired()) {
+            cache.put(key, entry); // 升级到主缓存
+            return entry.result;
         }
+
         return null;
     }
 
-    /**
-     * 缓存建议结果
-     */
     private static void cacheSuggestion(String context, String suggestion) {
         if (suggestion == null || suggestion.trim().isEmpty()) return;
 
         String key = generateContextKey(context);
+        CacheEntry entry = new CacheEntry(suggestion);
 
-        // LRU 淘汰策略
-        if (cache.size() >= MAX_CACHE_SIZE) {
-            Iterator<String> it = cache.keySet().iterator();
-            if (it.hasNext()) {
-                String oldestKey = it.next();
-                it.remove();
-                System.out.println("缓存淘汰: " + oldestKey);
-            }
-        }
-
-        cache.put(key, new CacheEntry(suggestion));
-        System.out.println("缓存保存: " + key + " -> " + suggestion.substring(0, Math.min(20, suggestion.length())));
+        // 自动LRU淘汰
+        cache.put(key, entry);
+        sessionCache.put(key, entry);
     }
+
 
     /**
      * 取消当前请求
