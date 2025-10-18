@@ -6,6 +6,7 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.actionSystem.TypedActionHandler;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
+import com.system.demo.utils.EditorContextUtils;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,7 +15,11 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 优化版本：更积极的补全策略，模仿IDEA行为
+ * 优化版本：更积极的补全策略，更接近IDEA官方实现
+ * 改进：
+ * 1. 使用基于PSI的智能上下文提取
+ * 2. 更好的缓存键生成策略
+ * 3. 优化的触发机制
  */
 public class LLMTypedActionHandler implements TypedActionHandler {
     private final TypedActionHandler originalHandler;
@@ -51,50 +56,46 @@ public class LLMTypedActionHandler implements TypedActionHandler {
         long triggerDelay = LLMSettings.getInstance().triggerDelayMs;
         pendingTask = scheduler.schedule(() -> {
             ApplicationManager.getApplication().executeOnPooledThread(() -> {
-                // 安全读取 PSI 和光标
-                final String[] fileContentHolder = new String[1];
-                final int[] offsetHolder = new int[1];
-                final String[] fileTypeHolder = new String[1];
+                // 使用智能上下文提取
+                final EditorContextUtils.SmartContext[] smartContextHolder = new EditorContextUtils.SmartContext[1];
                 final boolean[] shouldTriggerHolder = new boolean[1];
+                final PsiFile[] psiFileHolder = new PsiFile[1];
 
                 ApplicationManager.getApplication().runReadAction(() -> {
                     PsiFile psiFile = PsiDocumentManager.getInstance(editor.getProject())
                             .getPsiFile(editor.getDocument());
                     if (psiFile == null) return;
+                    
+                    psiFileHolder[0] = psiFile;
 
-                    fileContentHolder[0] = psiFile.getText();
-                    offsetHolder[0] = editor.getCaretModel().getOffset();
-                    fileTypeHolder[0] = psiFile.getFileType().getName().toLowerCase();
-
-                    // 在新的读操作中判断是否应该触发
+                    // 判断是否应该触发
                     shouldTriggerHolder[0] = shouldTriggerCompletion(editor, charTyped, psiFile);
+                    
+                    if (shouldTriggerHolder[0]) {
+                        // 使用新的智能上下文提取
+                        smartContextHolder[0] = EditorContextUtils.getSmartContext(psiFile, editor);
+                    }
                 });
 
-                if (!shouldTriggerHolder[0]) return;
+                if (!shouldTriggerHolder[0] || smartContextHolder[0] == null) return;
 
-                String fileContent = fileContentHolder[0];
-                if (fileContent == null) return;
-
-                int offset = offsetHolder[0];
-                String fileType = fileTypeHolder[0] != null ? fileTypeHolder[0] : "java";
-
-                // 使用优化的上下文获取策略
-                EnhancedContextInfo contextInfo = getEnhancedContext(fileContent, offset, editor);
-
+                EditorContextUtils.SmartContext smartContext = smartContextHolder[0];
+                
                 // 检查上下文是否变化，避免重复请求
-                String currentContextKey = generateContextKey(contextInfo, charTyped);
+                String currentContextKey = smartContext.getCacheKey() + "_" + charTyped;
                 if (currentContextKey.equals(lastContextKey)) {
                     return;
                 }
                 lastContextKey = currentContextKey;
 
-                // 构建优化的Prompt
-                String prompt = buildEnhancedPrompt(contextInfo, charTyped, fileType);
+                // 使用SmartContext构建优化的Prompt
+                String prompt = smartContext.buildOptimizedPrompt();
 
-                // 不取消之前的请求，让它们自然完成（减少中断）
-                String suggestion = LLMClient.queryLLM(prompt, contextInfo.getCacheKey());
+                // 查询LLM
+                String suggestion = LLMClient.queryLLM(prompt, smartContext.getCacheKey());
                 if (suggestion != null && !suggestion.isEmpty()) {
-                    suggestion = cleanSuggestion(suggestion, contextInfo);
+                    // 清理建议
+                    suggestion = cleanSuggestion(suggestion, smartContext.beforeCursor);
                     if (!suggestion.isEmpty()) {
                         String finalSuggestion = suggestion;
                         ApplicationManager.getApplication().invokeLater(() -> {
@@ -220,91 +221,9 @@ public class LLMTypedActionHandler implements TypedActionHandler {
     }
 
     /**
-     * 增强的上下文获取
+     * 清理建议内容
      */
-    private EnhancedContextInfo getEnhancedContext(String fileContent, int offset, Editor editor) {
-        int totalLength = fileContent.length();
-        int windowSize = 500; // 上下文窗口（字符数）
-        int start = Math.max(0, offset - windowSize);
-        int end = Math.min(totalLength, offset + 200);
-
-        String windowText = fileContent.substring(start, end);
-
-        // 精准方法上下文
-        String methodContext = extractMethodContext(fileContent, offset);
-        String classContext = extractClassContext(fileContent, offset);
-
-        // 当前行信息
-        int lineStart = fileContent.lastIndexOf('\n', offset - 1) + 1;
-        int lineEnd = fileContent.indexOf('\n', offset);
-        if (lineEnd == -1) lineEnd = fileContent.length();
-        String currentLine = fileContent.substring(lineStart, lineEnd);
-        String beforeCursor = fileContent.substring(lineStart, offset);
-        String afterCursor = fileContent.substring(offset, lineEnd);
-
-        return new EnhancedContextInfo(
-                windowText,
-                beforeCursor,
-                afterCursor,
-                currentLine,
-                methodContext + "\n" + classContext
-        );
-    }
-
-    // 识别当前方法上下文
-    private String extractMethodContext(String content, int offset) {
-        int methodStart = -1;
-        int braceBalance = 0;
-        for (int i = offset; i > 0; i--) {
-            char c = content.charAt(i - 1);
-            if (c == '{') braceBalance--;
-            else if (c == '}') braceBalance++;
-            if (braceBalance < 0) {
-                methodStart = i - 1;
-                break;
-            }
-        }
-        if (methodStart < 0) return "";
-        int sigStart = Math.max(0, content.lastIndexOf('\n', methodStart - 1));
-        return content.substring(sigStart, Math.min(offset, content.length()));
-    }
-
-    // 识别类级上下文
-    private String extractClassContext(String content, int offset) {
-        int classStart = content.lastIndexOf("class ", offset);
-        if (classStart == -1) return "";
-        int classHeaderEnd = content.indexOf("{", classStart);
-        if (classHeaderEnd == -1) classHeaderEnd = Math.min(offset, content.length());
-        return content.substring(classStart, classHeaderEnd);
-    }
-
-
-    /**
-     * 构建增强的Prompt
-     */
-    private String buildEnhancedPrompt(EnhancedContextInfo context, char lastChar, String fileType) {
-        return String.format(
-                "你是一个专业的 %s 代码补全助手。\n" +
-                        "当前文件类型: %s\n" +
-                        "用户最后输入字符: '%s'\n\n" +
-                        "==== 当前上下文（光标附近） ====\n%s\n\n" +
-                        "==== 方法上下文 ====\n%s\n\n" +
-                        "==== 当前行 ====\n%s|\n\n" +
-                        "请仅输出 **应在光标处插入的补全内容**，不要重复上下文或添加解释。",
-                fileType.toUpperCase(), fileType, lastChar,
-                context.previousLines, context.methodContext, context.beforeCursor
-        );
-    }
-
-
-    private String generateContextKey(EnhancedContextInfo context, char lastChar) {
-        // 使用更精细的上下文键
-        return context.beforeCursor.hashCode() + "_" +
-                context.previousLines.hashCode() + "_" +
-                lastChar;
-    }
-
-    private String cleanSuggestion(String suggestion, EnhancedContextInfo context) {
+    private String cleanSuggestion(String suggestion, String beforeCursor) {
         if (suggestion == null) return "";
 
         // 去除 markdown 代码块
@@ -313,8 +232,8 @@ public class LLMTypedActionHandler implements TypedActionHandler {
         suggestion = suggestion.trim();
 
         // 去除与当前行重复的内容
-        if (suggestion.startsWith(context.beforeCursor)) {
-            suggestion = suggestion.substring(context.beforeCursor.length()).trim();
+        if (suggestion.startsWith(beforeCursor.trim())) {
+            suggestion = suggestion.substring(beforeCursor.trim().length()).trim();
         }
 
         // 限制长度
@@ -324,29 +243,5 @@ public class LLMTypedActionHandler implements TypedActionHandler {
         }
 
         return suggestion;
-    }
-
-    /**
-     * 增强的上下文信息
-     */
-    private static class EnhancedContextInfo {
-        final String previousLines;    // 前几行代码
-        final String beforeCursor;     // 当前行光标前内容
-        final String afterCursor;      // 当前行光标后内容
-        final String currentLine;      // 整行内容
-        final String methodContext;    // 方法级上下文
-
-        EnhancedContextInfo(String previousLines, String beforeCursor,
-                            String afterCursor, String currentLine, String methodContext) {
-            this.previousLines = previousLines;
-            this.beforeCursor = beforeCursor;
-            this.afterCursor = afterCursor;
-            this.currentLine = currentLine;
-            this.methodContext = methodContext;
-        }
-
-        String getCacheKey() {
-            return previousLines + beforeCursor + afterCursor;
-        }
     }
 }
