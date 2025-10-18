@@ -47,7 +47,6 @@
 │   ├── LLM/
 │   │   ├── EditSelectionAction.java          # 代码分析与应用
 │   │   ├── LLMClient.java                    # API 调用客户端
-│   │   ├── LLMCompletionContributor.java     # 补全贡献者（旧版）
 │   │   ├── LLMInlineCompletionManager.java   # 内联补全管理
 │   │   ├── LLMPluginComponent.java           # 插件组件初始化
 │   │   ├── LLMSettings.java                  # 配置存储

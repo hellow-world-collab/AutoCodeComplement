@@ -142,7 +142,7 @@ public class LLMClient {
     }
 
     /**
-     * 查询LLM（修改后的版本，使用上下文哈希缓存）
+     * 查询LLM
      */
     public static String queryLLM(String prompt, String context) {
         // 首先尝试从缓存获取

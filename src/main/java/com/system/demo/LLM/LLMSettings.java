@@ -19,7 +19,7 @@ public class LLMSettings implements PersistentStateComponent<LLMSettings> {
     public String apiUrl = "https://api.openai.com/v1/chat/completions";
     public String apiKey = "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";
     public String model = "gpt-4o-mini";
-    public int triggerDelayMs = 300; // 降低延迟到300ms，提高响应速度
+    public int triggerDelayMs = 200; // 降低延迟到200ms，提高响应速度
     public int maxSuggestionLength = 150;
 
     public static LLMSettings getInstance() {
