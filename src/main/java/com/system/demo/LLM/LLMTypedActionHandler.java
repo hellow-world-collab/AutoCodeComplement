@@ -85,14 +85,14 @@ public class LLMTypedActionHandler implements TypedActionHandler {
                     return;
                 }
 
-                // 优化 prompt，只发送最后 500 个字符作为上下文
-                String contextToSend = context.length() > 500 
-                    ? context.substring(context.length() - 500) 
-                    : context;
+//                // 优化 prompt，只发送最后 500 个字符作为上下文
+//                String contextToSend = context.length() > 500
+//                    ? context.substring(context.length() - 500)
+//                    : context;
                 String prompt = "请根据以下代码上下文，预测用户接下来可能输入的代码（只返回补全内容，不要解释）：\n\n"
-                        + contextToSend + "\n\n请补全：";
+                        + context + "\n\n请补全：";
 
-                String suggestion = LLMClient.queryLLM(prompt);
+                String suggestion = LLMClient.queryLLM(prompt,context);
                 if (suggestion != null && !suggestion.isEmpty()) {
                     suggestion = cleanSuggestion(suggestion);
                     if (!suggestion.isEmpty()) {

@@ -51,7 +51,9 @@ public class EditSelectionAction extends AnAction {
         final String selectedText = selected;
         new Thread(() -> {
             String prompt = EditorContextUtils.buildContextPrompt(file, selectedText);
-            String suggestion = LLMClient.queryLLM(prompt);
+
+            String context = EditorContextUtils.getFullFileText(file) + "\n// Selected:\n" + selectedText;
+            String suggestion = LLMClient.queryLLM(prompt, context);
             
             if (suggestion == null || suggestion.isEmpty()) {
                 Messages.showWarningDialog(project, "模型未返回结果。", "提示");
