@@ -7,13 +7,11 @@ import org.json.JSONObject;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
-import java.util.LinkedHashMap;
-import java.util.Map;
-import java.util.Iterator;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 大模型LLM部分，优化缓存机制
+ * 大模型LLM客户端
+ * 优化版：简化缓存逻辑，使用CompletionCacheManager统一管理
  */
 public class LLMClient {
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
@@ -23,26 +21,6 @@ public class LLMClient {
 
     // 当前正在执行的请求
     private static volatile Call currentCall = null;
-
-    // 改进的缓存：基于上下文哈希
-    private static final Map<String, CacheEntry> cache = new LinkedHashMap<>();
-    private static final int MAX_CACHE_SIZE = 100; // 可以设置更大，因为存储开销小了
-
-    private static class CacheEntry {
-        final String result;
-        final long timestamp;
-
-        CacheEntry(String result) {
-            this.result = result;
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        boolean isExpired() {
-            return System.currentTimeMillis() - timestamp > CACHE_TTL_MS;
-        }
-    }
-
-    private static final long CACHE_TTL_MS = 60000; // 缓存1分钟
 
     // 创建HTTP客户端（保持不变）
     private static OkHttpClient createHttpClient() {
@@ -58,79 +36,6 @@ public class LLMClient {
     }
 
     /**
-     * 生成上下文哈希键
-     */
-    private static String generateContextKey(String context) {
-        // 归一化处理
-        String normalized = context
-                .replaceAll("\\s+", " ")           // 合并空白
-                .replaceAll("//[^\\n]*", "")       // 移除单行注释
-                .trim();
-
-        // 取最近有意义的代码段（最后150字符通常足够）
-        int start = Math.max(0, normalized.length() - 150);
-        String recent = normalized.substring(start);
-
-        // 提取代码结构特征，提高缓存命中率
-        String features = extractCodeFeatures(recent);
-
-        return features + "_" + Integer.toHexString(recent.hashCode());
-    }
-
-    /**
-     * 提取代码特征
-     */
-    private static String extractCodeFeatures(String code) {
-        if (code.contains(".") && !code.endsWith(".")) return "method";
-        if (code.contains("new ")) return "new";
-        if (code.contains("if (")) return "if";
-        if (code.contains("for (")) return "for";
-        if (code.contains("while (")) return "while";
-        if (code.contains("=")) return "assign";
-        if (code.trim().endsWith(".")) return "dot";
-        return "code";
-    }
-
-    /**
-     * 从缓存获取建议
-     */
-    private static String getCachedSuggestion(String context) {
-        String key = generateContextKey(context);
-        CacheEntry entry = cache.get(key);
-        if (entry != null && !entry.isExpired()) {
-            System.out.println("缓存命中: " + key);
-            return entry.result;
-        }
-        // 移除过期条目
-        if (entry != null && entry.isExpired()) {
-            cache.remove(key);
-        }
-        return null;
-    }
-
-    /**
-     * 缓存建议结果
-     */
-    private static void cacheSuggestion(String context, String suggestion) {
-        if (suggestion == null || suggestion.trim().isEmpty()) return;
-
-        String key = generateContextKey(context);
-
-        // LRU 淘汰策略
-        if (cache.size() >= MAX_CACHE_SIZE) {
-            Iterator<String> it = cache.keySet().iterator();
-            if (it.hasNext()) {
-                String oldestKey = it.next();
-                it.remove();
-                System.out.println("缓存淘汰: " + oldestKey);
-            }
-        }
-
-        cache.put(key, new CacheEntry(suggestion));
-        System.out.println("缓存保存: " + key + " -> " + suggestion.substring(0, Math.min(20, suggestion.length())));
-    }
-
-    /**
      * 取消当前请求
      */
     public static void cancelCurrentRequest() {
@@ -142,15 +47,9 @@ public class LLMClient {
     }
 
     /**
-     * 查询LLM
+     * 查询LLM（简化版，缓存由CompletionCacheManager统一管理）
      */
     public static String queryLLM(String prompt, String context) {
-        // 首先尝试从缓存获取
-        String cached = getCachedSuggestion(context);
-        if (cached != null) {
-            return cached;
-        }
-
         // 取消之前的请求
         cancelCurrentRequest();
 
@@ -205,8 +104,6 @@ public class LLMClient {
                     .getString("content")
                     .trim();
 
-            // 缓存结果（使用上下文而不是prompt）
-            cacheSuggestion(context, completion);
             return completion;
         } catch (IOException e) {
             if (call.isCanceled()) {
@@ -220,16 +117,16 @@ public class LLMClient {
     }
 
     /**
-     * 获取缓存统计信息（用于调试）
+     * 获取缓存统计信息（从CompletionCacheManager获取）
      */
     public static String getCacheStats() {
-        return "缓存大小: " + cache.size() + "/" + MAX_CACHE_SIZE;
+        return CompletionCacheManager.getInstance().getStats().toString();
     }
 
     /**
-     * 清空缓存（用于测试）
+     * 清空缓存（委托给CompletionCacheManager）
      */
     public static void clearCache() {
-        cache.clear();
+        CompletionCacheManager.getInstance().clearAll();
     }
 }

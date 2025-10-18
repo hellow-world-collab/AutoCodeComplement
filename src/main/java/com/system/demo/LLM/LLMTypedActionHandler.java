@@ -6,6 +6,8 @@ import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.actionSystem.TypedActionHandler;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
+import com.system.demo.utils.EditorContextUtils;
+import com.system.demo.utils.EditorContextUtils.CodeContext;
 import org.jetbrains.annotations.NotNull;
 
 import java.util.concurrent.ScheduledExecutorService;
@@ -14,7 +16,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 优化版本：更积极的补全策略，模仿IDEA行为
+ * 优化版本：采用PSI分析和智能缓存，更接近IDEA官方实现
  */
 public class LLMTypedActionHandler implements TypedActionHandler {
     private final TypedActionHandler originalHandler;
@@ -22,6 +24,7 @@ public class LLMTypedActionHandler implements TypedActionHandler {
     private static final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
     private volatile ScheduledFuture<?> pendingTask = null;
     private volatile String lastContextKey = "";
+    private final CompletionCacheManager cacheManager = CompletionCacheManager.getInstance();
 
     public LLMTypedActionHandler(TypedActionHandler originalHandler) {
         this.originalHandler = originalHandler;
@@ -51,51 +54,57 @@ public class LLMTypedActionHandler implements TypedActionHandler {
         long triggerDelay = LLMSettings.getInstance().triggerDelayMs;
         pendingTask = scheduler.schedule(() -> {
             ApplicationManager.getApplication().executeOnPooledThread(() -> {
-                // 安全读取 PSI 和光标
-                final String[] fileContentHolder = new String[1];
-                final int[] offsetHolder = new int[1];
-                final String[] fileTypeHolder = new String[1];
+                // 使用增强的上下文提取
+                final CodeContext[] contextHolder = new CodeContext[1];
+                final PsiFile[] psiFileHolder = new PsiFile[1];
                 final boolean[] shouldTriggerHolder = new boolean[1];
 
                 ApplicationManager.getApplication().runReadAction(() -> {
                     PsiFile psiFile = PsiDocumentManager.getInstance(editor.getProject())
                             .getPsiFile(editor.getDocument());
                     if (psiFile == null) return;
-
-                    fileContentHolder[0] = psiFile.getText();
-                    offsetHolder[0] = editor.getCaretModel().getOffset();
-                    fileTypeHolder[0] = psiFile.getFileType().getName().toLowerCase();
-
-                    // 在新的读操作中判断是否应该触发
+                    
+                    psiFileHolder[0] = psiFile;
                     shouldTriggerHolder[0] = shouldTriggerCompletion(editor, charTyped, psiFile);
+                    
+                    if (shouldTriggerHolder[0]) {
+                        // 使用新的上下文提取工具
+                        contextHolder[0] = EditorContextUtils.getCodeContext(editor, psiFile);
+                    }
                 });
 
-                if (!shouldTriggerHolder[0]) return;
+                if (!shouldTriggerHolder[0] || contextHolder[0] == null) return;
 
-                String fileContent = fileContentHolder[0];
-                if (fileContent == null) return;
-
-                int offset = offsetHolder[0];
-                String fileType = fileTypeHolder[0] != null ? fileTypeHolder[0] : "java";
-
-                // 使用优化的上下文获取策略
-                EnhancedContextInfo contextInfo = getEnhancedContext(fileContent, offset, editor);
-
+                CodeContext context = contextHolder[0];
+                
                 // 检查上下文是否变化，避免重复请求
-                String currentContextKey = generateContextKey(contextInfo, charTyped);
+                String currentContextKey = context.getCacheKey();
                 if (currentContextKey.equals(lastContextKey)) {
                     return;
                 }
                 lastContextKey = currentContextKey;
+                
+                // 首先尝试从智能缓存获取
+                String cachedSuggestion = cacheManager.getCachedSuggestion(context);
+                if (cachedSuggestion != null && !cachedSuggestion.isEmpty()) {
+                    String finalSuggestion = cachedSuggestion;
+                    ApplicationManager.getApplication().invokeLater(() -> {
+                        LLMInlineCompletionManager.showInlineSuggestion(editor, finalSuggestion);
+                    });
+                    return;
+                }
 
                 // 构建优化的Prompt
-                String prompt = buildEnhancedPrompt(contextInfo, charTyped, fileType);
+                String prompt = buildOptimizedPrompt(context, charTyped);
 
-                // 不取消之前的请求，让它们自然完成（减少中断）
-                String suggestion = LLMClient.queryLLM(prompt, contextInfo.getCacheKey());
+                // 查询LLM
+                String suggestion = LLMClient.queryLLM(prompt, context.getCacheKey());
                 if (suggestion != null && !suggestion.isEmpty()) {
-                    suggestion = cleanSuggestion(suggestion, contextInfo);
+                    suggestion = cleanSuggestion(suggestion, context);
                     if (!suggestion.isEmpty()) {
+                        // 缓存到智能缓存管理器
+                        cacheManager.cacheSuggestion(context, suggestion);
+                        
                         String finalSuggestion = suggestion;
                         ApplicationManager.getApplication().invokeLater(() -> {
                             LLMInlineCompletionManager.showInlineSuggestion(editor, finalSuggestion);
@@ -220,114 +229,58 @@ public class LLMTypedActionHandler implements TypedActionHandler {
     }
 
     /**
-     * 增强的上下文获取
+     * 构建优化的Prompt（使用新的CodeContext）
      */
-    private EnhancedContextInfo getEnhancedContext(String fileContent, int offset, Editor editor) {
-        // 获取当前行信息
-        int lineStart = fileContent.lastIndexOf('\n', offset - 1) + 1;
-        int lineEnd = fileContent.indexOf('\n', offset);
-        if (lineEnd == -1) lineEnd = fileContent.length();
-
-        String currentLine = fileContent.substring(lineStart, lineEnd);
-        String beforeCursor = fileContent.substring(lineStart, offset);
-        String afterCursor = fileContent.substring(offset, lineEnd);
-
-        // 获取前几行作为上下文
-        String previousLines = getPreviousLines(fileContent, lineStart, 3);
-
-        // 获取方法级上下文
-        String methodContext = getMethodLevelContext(fileContent, offset);
-
-        return new EnhancedContextInfo(
-                previousLines,
-                beforeCursor,
-                afterCursor,
-                currentLine,
-                methodContext
-        );
-    }
-
-    private String getPreviousLines(String content, int currentLineStart, int lineCount) {
-        if (currentLineStart == 0) return "";
-
-        int start = currentLineStart;
-        for (int i = 0; i < lineCount; i++) {
-            int prevNewline = content.lastIndexOf('\n', start - 2); // -2 跳过当前行的换行
-            if (prevNewline <= 0) break;
-            start = prevNewline + 1;
+    private String buildOptimizedPrompt(CodeContext context, char lastChar) {
+        StringBuilder prompt = new StringBuilder();
+        
+        prompt.append("你是一个").append(context.fileType).append("代码专家。\n\n");
+        
+        // 添加结构化上下文
+        if (context.currentClassName != null) {
+            prompt.append("当前类: ").append(context.currentClassName).append("\n");
         }
-
-        return content.substring(start, currentLineStart).trim();
-    }
-
-    private String getMethodLevelContext(String content, int offset) {
-        // 简化的方法上下文获取
-        int methodStart = findMethodStart(content, offset);
-        if (methodStart >= 0) {
-            return content.substring(methodStart, offset);
+        if (context.currentMethodName != null) {
+            prompt.append("当前方法: ").append(context.currentMethodSignature).append("\n");
         }
-        return getRecentLines(content, offset, 10); // 最近10行作为fallback
-    }
-
-    private String getRecentLines(String content, int offset, int lineCount) {
-        int start = offset;
-        for (int i = 0; i < lineCount && start > 0; i++) {
-            start = content.lastIndexOf('\n', start - 1);
-            if (start == -1) {
-                start = 0;
-                break;
+        if (context.localVariables != null && !context.localVariables.isEmpty()) {
+            prompt.append("局部变量: ").append(context.localVariables).append("\n");
+        }
+        
+        prompt.append("\n=== 前置代码 ===\n");
+        if (context.precedingCode != null && !context.precedingCode.isEmpty()) {
+            // 只取最后部分，避免prompt过长
+            String preceding = context.precedingCode;
+            if (preceding.length() > 300) {
+                preceding = "..." + preceding.substring(preceding.length() - 300);
             }
+            prompt.append(preceding);
         }
-        return content.substring(start, offset);
-    }
-
-    private int findMethodStart(String content, int offset) {
-        // 从后往前查找方法开始
-        String[] methodKeywords = {"public", "private", "protected", "void", "int", "String", "boolean"};
-
-        for (String keyword : methodKeywords) {
-            int lastIndex = content.lastIndexOf(keyword + " ", offset);
-            if (lastIndex >= 0) {
-                String remaining = content.substring(lastIndex, Math.min(offset, content.length()));
-                if (remaining.contains("(") && !remaining.contains(";")) {
-                    return lastIndex;
-                }
-            }
+        
+        prompt.append("\n\n=== 当前行 ===\n");
+        prompt.append(context.currentLine.substring(0, context.cursorPositionInLine));
+        prompt.append("|"); // 光标位置
+        if (context.cursorPositionInLine < context.currentLine.length()) {
+            prompt.append(context.currentLine.substring(context.cursorPositionInLine));
         }
-        return -1;
+        
+        prompt.append("\n\n最后输入: '").append(lastChar).append("'\n\n");
+        
+        prompt.append("要求：\n");
+        prompt.append("1. 只返回需要在光标(|)处插入的代码\n");
+        prompt.append("2. 保持代码风格和缩进一致\n");
+        prompt.append("3. 考虑上下文逻辑连贯性\n");
+        prompt.append("4. 通常1-2行即可，简洁为主\n");
+        prompt.append("5. 不要重复已有代码\n\n");
+        prompt.append("补全内容：");
+        
+        return prompt.toString();
     }
 
     /**
-     * 构建增强的Prompt
+     * 清理LLM返回的建议
      */
-    private String buildEnhancedPrompt(EnhancedContextInfo context, char lastChar, String fileType) {
-        return String.format(
-                "你是一个%s代码专家，基于以下上下文预测最合适的代码补全：\n\n" +
-                        "=== 前几行代码 ===\n%s\n\n" +
-                        "=== 当前行（光标前） ===\n%s|\n\n" +
-                        "=== 当前行（光标后） ===\n%s\n\n" +
-                        "=== 方法上下文 ===\n%s\n\n" +
-                        "最后输入字符：'%s'\n\n" +
-                        "要求：\n" +
-                        "1. 只返回需要在光标处插入的代码\n" +
-                        "2. 保持代码风格一致\n" +
-                        "3. 考虑代码逻辑连贯性\n" +
-                        "4. 如果是行首，预测整行代码\n" +
-                        "5. 保持简洁（通常1-2行）\n\n" +
-                        "补全内容：",
-                fileType, context.previousLines, context.beforeCursor,
-                context.afterCursor, context.methodContext, lastChar
-        );
-    }
-
-    private String generateContextKey(EnhancedContextInfo context, char lastChar) {
-        // 使用更精细的上下文键
-        return context.beforeCursor.hashCode() + "_" +
-                context.previousLines.hashCode() + "_" +
-                lastChar;
-    }
-
-    private String cleanSuggestion(String suggestion, EnhancedContextInfo context) {
+    private String cleanSuggestion(String suggestion, CodeContext context) {
         if (suggestion == null) return "";
 
         // 去除 markdown 代码块
@@ -336,40 +289,23 @@ public class LLMTypedActionHandler implements TypedActionHandler {
         suggestion = suggestion.trim();
 
         // 去除与当前行重复的内容
-        if (suggestion.startsWith(context.beforeCursor)) {
-            suggestion = suggestion.substring(context.beforeCursor.length()).trim();
+        String beforeCursor = context.currentLine.substring(0, context.cursorPositionInLine).trim();
+        if (suggestion.startsWith(beforeCursor)) {
+            suggestion = suggestion.substring(beforeCursor.length()).trim();
         }
 
         // 限制长度
         int maxLength = LLMSettings.getInstance().maxSuggestionLength;
         if (suggestion.length() > maxLength) {
-            suggestion = suggestion.substring(0, maxLength);
+            // 在合适的位置截断（避免截断到行中间）
+            int cutPos = suggestion.lastIndexOf('\n', maxLength);
+            if (cutPos > 0 && cutPos > maxLength / 2) {
+                suggestion = suggestion.substring(0, cutPos);
+            } else {
+                suggestion = suggestion.substring(0, maxLength);
+            }
         }
 
         return suggestion;
-    }
-
-    /**
-     * 增强的上下文信息
-     */
-    private static class EnhancedContextInfo {
-        final String previousLines;    // 前几行代码
-        final String beforeCursor;     // 当前行光标前内容
-        final String afterCursor;      // 当前行光标后内容
-        final String currentLine;      // 整行内容
-        final String methodContext;    // 方法级上下文
-
-        EnhancedContextInfo(String previousLines, String beforeCursor,
-                            String afterCursor, String currentLine, String methodContext) {
-            this.previousLines = previousLines;
-            this.beforeCursor = beforeCursor;
-            this.afterCursor = afterCursor;
-            this.currentLine = currentLine;
-            this.methodContext = methodContext;
-        }
-
-        String getCacheKey() {
-            return previousLines + beforeCursor + afterCursor;
-        }
     }
 }
