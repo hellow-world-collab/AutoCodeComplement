@@ -1,6 +1,7 @@
 package com.system.demo.LLM;
 
 import com.intellij.diff.DiffContentFactory;
+import com.intellij.diff.DiffDialogHints;
 import com.intellij.diff.DiffManager;
 import com.intellij.diff.contents.DocumentContent;
 import com.intellij.diff.requests.SimpleDiffRequest;
@@ -24,6 +25,8 @@ public class EditSelectionAction extends AnAction {
     private static int lastSelectionStart;
     private static int lastSelectionEnd;
     private static Editor lastEditor;
+    private static boolean editorWasReadOnly = false;
+    private static boolean diffDialogOpen = false;
 
     @Override
     public void actionPerformed(@NotNull AnActionEvent e) {
@@ -100,23 +103,55 @@ public class EditSelectionAction extends AnAction {
     }
 
     /**
-     * 显示差异对比对话框
+     * 显示差异对比对话框（模态对话框，阻止编辑）
      */
     private void showDiffDialog(Project project, String original, String modified) {
+        // 保存编辑器原始只读状态
+        if (lastEditor != null) {
+            editorWasReadOnly = !lastEditor.getDocument().isWritable();
+            
+            // 设置编辑器为只读模式
+            lastEditor.getDocument().setReadOnly(true);
+            diffDialogOpen = true;
+        }
+
         DiffContentFactory contentFactory = DiffContentFactory.getInstance();
 
         DocumentContent content1 = contentFactory.create(project, original);
         DocumentContent content2 = contentFactory.create(project, modified);
 
         SimpleDiffRequest request = new SimpleDiffRequest(
-                "AI 代码修改建议对比",
+                "AI 代码修改建议对比 - 请应用修改或关闭窗口后才能继续编辑",
                 content1,
                 content2,
                 "原始代码",
                 "AI 修改建议"
         );
 
-        DiffManager.getInstance().showDiff(project, request);
+        // 使用模态对话框提示，并在关闭时恢复编辑权限
+        DiffDialogHints hints = new DiffDialogHints(
+                DiffDialogHints.DEFAULT.getMode(),
+                null,
+                () -> {
+                    // 对话框关闭时的回调
+                    restoreEditorEditability();
+                }
+        );
+
+        DiffManager.getInstance().showDiff(project, request, hints);
+    }
+
+    /**
+     * 恢复编辑器的可编辑状态
+     */
+    private static void restoreEditorEditability() {
+        if (lastEditor != null && diffDialogOpen) {
+            // 只有当编辑器原本不是只读时才恢复为可编辑
+            if (!editorWasReadOnly) {
+                lastEditor.getDocument().setReadOnly(false);
+            }
+            diffDialogOpen = false;
+        }
     }
 
     /**
@@ -131,6 +166,10 @@ public class EditSelectionAction extends AnAction {
         }
 
         Document doc = lastEditor.getDocument();
+        
+        // 应用修改前先恢复编辑权限
+        restoreEditorEditability();
+        
         WriteCommandAction.runWriteCommandAction(project, () -> {
             doc.replaceString(lastSelectionStart, lastSelectionEnd, lastSuggestion);
         });
@@ -140,6 +179,7 @@ public class EditSelectionAction extends AnAction {
         lastSuggestion = null;
         lastOriginal = null;
         lastEditor = null;
+        editorWasReadOnly = false;
 
         Messages.showInfoMessage(project, "已成功应用 AI 修改建议！", "完成");
     }
