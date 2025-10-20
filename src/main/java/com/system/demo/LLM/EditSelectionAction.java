@@ -50,7 +50,19 @@ public class EditSelectionAction extends AnAction {
         // 在后台线程调用 LLM
         final String selectedText = selected;
         new Thread(() -> {
-            String prompt = EditorContextUtils.buildContextPrompt(file, selectedText);
+
+            // 获取 actionid 来区分 加注释 和 改代码 两个功能
+            String actionId = ActionManager.getInstance().getId(this);
+
+            String prompt;
+            if ("CommentSelectionWithAI".equalsIgnoreCase(actionId)) {
+                // Shift + Alt + 3 → 给代码加注释
+                prompt = EditorContextUtils.buildContextPromptForComment(file, selectedText);
+            } else {
+                // 默认：Shift + Alt + 1 → 改进代码
+                prompt = EditorContextUtils.buildContextPrompt(file, selectedText);
+            }
+//            String prompt = EditorContextUtils.buildContextPrompt(file, selectedText);
 
             String context = EditorContextUtils.getFullFileText(file) + "\n// Selected:\n" + selectedText;
             String suggestion = LLMClient.queryLLM(prompt, context);
@@ -92,7 +104,7 @@ public class EditSelectionAction extends AnAction {
      */
     private void showDiffDialog(Project project, String original, String modified) {
         DiffContentFactory contentFactory = DiffContentFactory.getInstance();
-        
+
         DocumentContent content1 = contentFactory.create(project, original);
         DocumentContent content2 = contentFactory.create(project, modified);
 
@@ -128,7 +140,7 @@ public class EditSelectionAction extends AnAction {
         lastSuggestion = null;
         lastOriginal = null;
         lastEditor = null;
-        
+
         Messages.showInfoMessage(project, "已成功应用 AI 修改建议！", "完成");
     }
 

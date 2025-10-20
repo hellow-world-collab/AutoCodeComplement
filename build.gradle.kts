@@ -17,10 +17,7 @@ dependencies {
 }
 // Configure Gradle IntelliJ Plugin
 intellij {
-    // 使用远程版本而不是本地路径
-//    version.set("2019.3.5")
     type.set("PY")
-    // 如果需要使用本地路径，请取消下面的注释并设置正确的路径
      localPath.set("D:\\BaiduNetdiskDownload\\pycahrmPC\\PyCharm Community Edition 2019.3.5")
 }
 

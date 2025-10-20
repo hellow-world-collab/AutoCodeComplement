@@ -14,7 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 /**
- * 优化版本：更积极的补全策略，模仿IDEA行为
+ * 补全策略，模仿IDEA行为
  */
 public class LLMTypedActionHandler implements TypedActionHandler {
     private final TypedActionHandler originalHandler;
@@ -280,7 +280,7 @@ public class LLMTypedActionHandler implements TypedActionHandler {
 
 
     /**
-     * 构建增强的Prompt
+     * 构建Prompt
      */
     private String buildEnhancedPrompt(EnhancedContextInfo context, char lastChar, String fileType) {
         return String.format(

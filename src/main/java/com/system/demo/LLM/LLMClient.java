@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 
 /**
  * 大模型LLM部分，优化缓存机制
+ * 更改为本地方法需要更改queryLLM和createHttpClient部分，将apiurl改为本地url,更改请求体，去掉代理，其他文件没必要改动
  */
 public class LLMClient {
     private static final MediaType JSON = MediaType.get("application/json; charset=utf-8");
@@ -42,8 +43,9 @@ public class LLMClient {
 
     private static final long CACHE_TTL_MS = 60000; // 缓存1分钟
 
-    // 创建HTTP客户端（保持不变）
+    // 创建HTTP客户端
     private static OkHttpClient createHttpClient() {
+        // 是否需要代理，如果不需要就删掉Proxy
         Proxy proxy = new Proxy(Proxy.Type.HTTP, new InetSocketAddress("127.0.0.1", 7897));
 
         return new OkHttpClient.Builder()
@@ -136,7 +138,7 @@ public class LLMClient {
     }
 
     /**
-     * 查询LLM
+     * 查询LLM， 需要更改为本地方法
      */
     public static String queryLLM(String prompt, String context) {
         // 首先尝试从缓存获取
@@ -199,7 +201,7 @@ public class LLMClient {
                     .getString("content")
                     .trim();
 
-            // 缓存结果（使用上下文而不是prompt）
+            // 缓存结果的上下文
             cacheSuggestion(context, completion);
             return completion;
         } catch (IOException e) {
