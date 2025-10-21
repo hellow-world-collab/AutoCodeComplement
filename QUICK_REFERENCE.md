@@ -6,7 +6,8 @@
 |-------------------|------|----------|
 | `Shift + Alt + A` | 开启/关闭 AI 补全 | Toggle AI Completion |
 | `Tab`             | 接受补全建议 | Accept Suggestion |
-| `Shift + Alt + 1` | 分析选中代码 | Analyze Selected Code |
+| `Shift + Alt + 1` | 分析和优化选中代码 | Analyze & Optimize Code |
+| `Shift + Alt + 3` | 为选中代码加注释 | Add Comments to Code |
 | `Shift + Alt + 2` | 应用 AI 修改 | Apply AI Changes |
 
 ## 📦 安装步骤 | Installation
@@ -46,7 +47,7 @@ def calculate_sum(a, b):
 # 4. 按 Tab 接受 | Press Tab to accept
 ```
 
-### 代码分析 | Code Analysis
+### 代码优化 | Code Optimization
 ```python
 # 1. 选中代码 | Select code:
 for i in range(10):
@@ -57,14 +58,27 @@ for i in range(10):
 # 4. 按 Shift+Alt+2 应用 | Press Shift+Alt+2 to apply
 ```
 
+### 添加注释 | Add Comments
+```python
+# 1. 选中代码 | Select code:
+def process_data(data):
+    return sum([x for x in data if x > 0])
+
+# 2. 按 Shift+Alt+3 | Press Shift+Alt+3
+# 3. AI 自动添加注释 | AI adds comments
+# 4. 查看对比并应用 | Review and apply
+```
+
 ## 🔧 故障排查 | Troubleshooting
 
 | 问题 | 解决方案 | Problem | Solution |
 |------|----------|---------|----------|
 | 补全不工作 | 检查是否已开启(Shift+Alt+A) | No completion | Check if enabled (Shift+Alt+A) |
-| API 错误 | 检查 API Key 是否正确 | API error | Verify API Key |
+| API 错误 | 检查 API Key 和网络连接 | API error | Verify API Key and network |
+| 代理问题 | 检查代理 127.0.0.1:7897 | Proxy issue | Check proxy 127.0.0.1:7897 |
 | 补全太慢 | 增加触发延迟时间 | Too slow | Increase trigger delay |
 | 建议太长 | 减小最大建议长度 | Too long | Reduce max suggestion length |
+| 编辑器锁定 | 关闭 Diff 对话框 | Editor locked | Close Diff dialog |
 
 ## 📚 文档 | Documentation
 
@@ -83,8 +97,11 @@ for i in range(10):
 
 1. **首次使用**：务必配置 API Key | Must configure API Key
 2. **网络**：需要访问 API 地址 | Need API access
-3. **性能**：可调整触发延迟 | Adjustable trigger delay
-4. **费用**：注意 API 调用成本 | Mind API costs
+3. **代理**：默认使用 127.0.0.1:7897 | Default proxy 127.0.0.1:7897
+4. **性能**：可调整触发延迟 | Adjustable trigger delay
+5. **缓存**：自动缓存 60 秒，减少 API 调用 | Auto cache 60s, reduce API calls
+6. **费用**：注意 API 调用成本 | Mind API costs
+7. **锁定**：查看 Diff 时编辑器自动锁定 | Editor auto-locks when viewing Diff
 
 ---
 

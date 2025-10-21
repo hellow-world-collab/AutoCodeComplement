@@ -16,7 +16,8 @@
 - **Tab 键接受**：按 Tab 键接受当前建议
 
 #### 2. 🔧 代码分析与优化
-- **Shift + Alt + 1**：将选中代码发送给 AI 分析
+- **Shift + Alt + 1**：将选中代码发送给 AI 分析和优化
+- **Shift + Alt + 3**：为选中代码添加专业注释
 - **Diff 对比**：专业的差异对比视图
 - **Shift + Alt + 2**：应用 AI 的修改建议
 
@@ -69,12 +70,27 @@
 - **语言**：Java 8
 - **构建工具**：Gradle 8.7
 - **IDE SDK**：PyCharm 2019.3.5 (Build 193.*)
-- **依赖**：OkHttp 4.12.0, org.json 20240303
+- **依赖**：
+  - OkHttp 4.12.0 - HTTP 客户端
+  - org.json 20240303 - JSON 处理
+  - java-diff-utils 4.12 - 差异对比
+
+### 核心特性
+
+- ✅ **智能缓存**：基于上下文的 LRU 缓存机制，减少 API 调用
+- ✅ **代理支持**：内置 HTTP 代理配置（127.0.0.1:7897）
+- ✅ **请求取消**：自动取消过期的 API 请求
+- ✅ **异步处理**：后台线程调用 API，不阻塞 UI
+- ✅ **模态对话框**：查看差异时锁定编辑器，防止误操作
+- ✅ **智能清理**：自动清理 Markdown 代码块标记
 
 ### 文档
 
 - 📖 [详细使用说明](USAGE.md)
 - 📋 [项目总结](PROJECT_SUMMARY.md)
+- 🏗️ [架构设计文档](ARCHITECTURE.md)
+- ⚡ [快速参考卡片](QUICK_REFERENCE.md)
+- 📝 [更新日志](CHANGELOG.md)
 
 ### 系统要求
 
@@ -96,9 +112,10 @@ An intelligent code assistant plugin for PyCharm 2019.3.5 Community Edition, pow
 - **Tab to accept**: Press Tab to accept suggestions
 
 #### 2. 🔧 Code Analysis & Refactoring
-- **Shift + Alt + E**: Send selected code to AI for analysis
+- **Shift + Alt + 1**: Send selected code to AI for analysis and optimization
+- **Shift + Alt + 3**: Add professional comments to selected code
 - **Diff View**: Professional diff comparison view
-- **Shift + Alt + R**: Apply AI suggestions
+- **Shift + Alt + 2**: Apply AI suggestions
 
 ### Quick Start
 
@@ -149,12 +166,27 @@ Supports all services compatible with OpenAI Chat Completions API format:
 - **Language**: Java 8
 - **Build Tool**: Gradle 8.7
 - **IDE SDK**: PyCharm 2019.3.5 (Build 193.*)
-- **Dependencies**: OkHttp 4.12.0, org.json 20240303
+- **Dependencies**: 
+  - OkHttp 4.12.0 - HTTP client
+  - org.json 20240303 - JSON processing
+  - java-diff-utils 4.12 - Diff comparison
+
+### Core Features
+
+- ✅ **Smart Caching**: Context-based LRU cache to reduce API calls
+- ✅ **Proxy Support**: Built-in HTTP proxy configuration (127.0.0.1:7897)
+- ✅ **Request Cancellation**: Auto-cancel outdated API requests
+- ✅ **Async Processing**: Background threads for API calls, non-blocking UI
+- ✅ **Modal Dialogs**: Lock editor while viewing diffs to prevent accidental edits
+- ✅ **Smart Cleanup**: Auto-remove Markdown code block markers
 
 ### Documentation
 
 - 📖 [Detailed Usage Guide](USAGE.md)
 - 📋 [Project Summary](PROJECT_SUMMARY.md)
+- 🏗️ [Architecture Design](ARCHITECTURE.md)
+- ⚡ [Quick Reference Card](QUICK_REFERENCE.md)
+- 📝 [Changelog](CHANGELOG.md)
 
 ### Requirements
 
