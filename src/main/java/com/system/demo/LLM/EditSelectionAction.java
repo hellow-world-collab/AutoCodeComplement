@@ -1,6 +1,9 @@
 package com.system.demo.LLM;
 
-import com.intellij.openapi.actionSystem.*;
+import com.intellij.openapi.actionSystem.ActionManager;
+import com.intellij.openapi.actionSystem.AnAction;
+import com.intellij.openapi.actionSystem.AnActionEvent;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
@@ -126,12 +129,26 @@ public class EditSelectionAction extends AnAction {
         private final String modified;
 
         protected DiffDialog(Project project, String original, String modified) {
-            super(true); // true = 模态对话框
+            super(true); // 保留模态
             this.project = project;
             this.original = original;
             this.modified = modified;
-            setTitle("AI 修改建议对比 - 模态窗口");
+            setTitle("AI 修改建议 - 差异对比");
+            setOKButtonText("应用修改");
             init();
+
+            // 快捷键绑定：Shift+Alt+2 在对话框中也可触发应用
+            KeyStroke applyKey = KeyStroke.getKeyStroke("shift alt 2");
+            getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+                    .put(applyKey, "APPLY_AI_EDIT");
+            getRootPane().getActionMap()
+                    .put("APPLY_AI_EDIT", new AbstractAction() {
+                        @Override
+                        public void actionPerformed(ActionEvent e) {
+                            applyChanges(); // 立即执行替换
+                            close(OK_EXIT_CODE); // 然后关闭窗口
+                        }
+                    });
         }
 
         @Override
