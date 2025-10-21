@@ -1,23 +1,23 @@
 package com.system.demo.LLM;
 
-import com.intellij.diff.DiffContentFactory;
-import com.intellij.diff.DiffDialogHints;
-import com.intellij.diff.DiffManager;
-import com.intellij.diff.contents.DocumentContent;
-import com.intellij.diff.requests.SimpleDiffRequest;
 import com.intellij.openapi.actionSystem.*;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.SelectionModel;
 import com.intellij.openapi.project.Project;
+import com.intellij.openapi.ui.DialogWrapper;
 import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.PsiFile;
 import com.system.demo.utils.EditorContextUtils;
 import org.jetbrains.annotations.NotNull;
 
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.ActionEvent;
+
 /**
- * 选中代码发送到 LLM → 弹窗显示差异 → 用户确认应用
+ * 选中代码发送到 LLM → 弹窗显示差异（模态对话框） → 用户确认应用
  */
 public class EditSelectionAction extends AnAction {
     private static String lastSuggestion;
@@ -54,7 +54,7 @@ public class EditSelectionAction extends AnAction {
         final String selectedText = selected;
         new Thread(() -> {
 
-            // 获取 actionid 来区分 加注释 和 改代码 两个功能
+            // 获取 actionId 来区分不同功能
             String actionId = ActionManager.getInstance().getId(this);
 
             String prompt;
@@ -65,11 +65,10 @@ public class EditSelectionAction extends AnAction {
                 // 默认：Shift + Alt + 1 → 改进代码
                 prompt = EditorContextUtils.buildContextPrompt(file, selectedText);
             }
-//            String prompt = EditorContextUtils.buildContextPrompt(file, selectedText);
 
             String context = EditorContextUtils.getFullFileText(file) + "\n// Selected:\n" + selectedText;
             String suggestion = LLMClient.queryLLM(prompt, context);
-            
+
             if (suggestion == null || suggestion.isEmpty()) {
                 Messages.showWarningDialog(project, "模型未返回结果。", "提示");
                 return;
@@ -81,7 +80,7 @@ public class EditSelectionAction extends AnAction {
             lastOriginal = selectedText;
             lastSuggestion = cleanedSuggestion;
 
-            // 在 UI 线程显示差异对比窗口
+            // 在 UI 线程显示模态对话框
             com.intellij.openapi.application.ApplicationManager.getApplication().invokeLater(() -> {
                 showDiffDialog(project, selectedText, cleanedSuggestion);
             });
@@ -95,10 +94,10 @@ public class EditSelectionAction extends AnAction {
         // 去除 markdown 代码块标记
         suggestion = suggestion.replaceAll("```[a-zA-Z]*\\n?", "");
         suggestion = suggestion.replaceAll("```", "");
-        
+
         // 去除前后空白
         suggestion = suggestion.trim();
-        
+
         return suggestion;
     }
 
@@ -109,36 +108,108 @@ public class EditSelectionAction extends AnAction {
         // 保存编辑器原始只读状态
         if (lastEditor != null) {
             editorWasReadOnly = !lastEditor.getDocument().isWritable();
-            
+
             // 设置编辑器为只读模式
             lastEditor.getDocument().setReadOnly(true);
             diffDialogOpen = true;
         }
 
-        DiffContentFactory contentFactory = DiffContentFactory.getInstance();
+        new DiffDialog(project, original, modified).show();
+    }
 
-        DocumentContent content1 = contentFactory.create(project, original);
-        DocumentContent content2 = contentFactory.create(project, modified);
+    /**
+     * 自定义模态对话框（阻塞主窗口）
+     */
+    private static class DiffDialog extends DialogWrapper {
+        private final Project project;
+        private final String original;
+        private final String modified;
 
-        SimpleDiffRequest request = new SimpleDiffRequest(
-                "AI 代码修改建议对比 - 请应用修改或关闭窗口后才能继续编辑",
-                content1,
-                content2,
-                "原始代码",
-                "AI 修改建议"
-        );
+        protected DiffDialog(Project project, String original, String modified) {
+            super(true); // true = 模态对话框
+            this.project = project;
+            this.original = original;
+            this.modified = modified;
+            setTitle("AI 修改建议对比 - 模态窗口");
+            init();
+        }
 
-        // 使用模态对话框提示，并在关闭时恢复编辑权限
-        DiffDialogHints hints = new DiffDialogHints(
-                DiffDialogHints.DEFAULT.getMode(),
-                null,
-                () -> {
-                    // 对话框关闭时的回调
-                    restoreEditorEditability();
-                }
-        );
+        @Override
+        protected JComponent createCenterPanel() {
+            // 创建一个水平分割面板：左侧原代码，右侧 AI 建议
+            JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
+            splitPane.setResizeWeight(0.5);
 
-        DiffManager.getInstance().showDiff(project, request, hints);
+            JTextArea leftArea = new JTextArea(original);
+            leftArea.setEditable(false);
+            leftArea.setFont(new Font("Monospaced", Font.PLAIN, 13));
+
+            JTextArea rightArea = new JTextArea(modified);
+            rightArea.setEditable(false);
+            rightArea.setFont(new Font("Monospaced", Font.PLAIN, 13));
+
+            splitPane.setLeftComponent(new JScrollPane(leftArea));
+            splitPane.setRightComponent(new JScrollPane(rightArea));
+
+            JPanel panel = new JPanel(new BorderLayout());
+            panel.add(splitPane, BorderLayout.CENTER);
+
+            JLabel tip = new JLabel("← 原代码 | AI 修改建议 →");
+            tip.setHorizontalAlignment(SwingConstants.CENTER);
+            tip.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
+            panel.add(tip, BorderLayout.NORTH);
+
+            return panel;
+        }
+
+        @Override
+        protected Action @NotNull [] createActions() {
+            // 自定义按钮
+            return new Action[]{
+                    new ApplyAction(),
+                    new CancelAction()
+            };
+        }
+
+        private class ApplyAction extends DialogWrapperAction {
+            protected ApplyAction() {
+                super("应用修改");
+            }
+
+            @Override
+            protected void doAction(ActionEvent e) {
+                applyChanges();
+                close(OK_EXIT_CODE);
+            }
+        }
+
+        private class CancelAction extends DialogWrapperAction {
+            protected CancelAction() {
+                super("取消");
+            }
+
+            @Override
+            protected void doAction(ActionEvent e) {
+                restoreEditorEditability();
+                close(CANCEL_EXIT_CODE);
+            }
+        }
+
+        private void applyChanges() {
+            if (lastEditor != null && lastSuggestion != null) {
+                restoreEditorEditability();
+                WriteCommandAction.runWriteCommandAction(project, () -> {
+                    lastEditor.getDocument().replaceString(lastSelectionStart, lastSelectionEnd, lastSuggestion);
+                });
+                Messages.showInfoMessage(project, "已成功应用 AI 修改建议！", "完成");
+            }
+        }
+
+        @Override
+        protected void dispose() {
+            super.dispose();
+            restoreEditorEditability();
+        }
     }
 
     /**
@@ -166,16 +237,15 @@ public class EditSelectionAction extends AnAction {
         }
 
         Document doc = lastEditor.getDocument();
-        
+
         // 应用修改前先恢复编辑权限
         restoreEditorEditability();
-        
+
         WriteCommandAction.runWriteCommandAction(project, () -> {
             doc.replaceString(lastSelectionStart, lastSelectionEnd, lastSuggestion);
         });
 
         // 清空状态
-        String appliedSuggestion = lastSuggestion;
         lastSuggestion = null;
         lastOriginal = null;
         lastEditor = null;
@@ -185,7 +255,7 @@ public class EditSelectionAction extends AnAction {
     }
 
     /**
-     * 绑定 Shift+Alt+R 快捷键应用修改
+     * 绑定 Shift+Alt+2 快捷键应用修改
      */
     public static class ApplyEditAction extends AnAction {
         @Override
@@ -198,6 +268,7 @@ public class EditSelectionAction extends AnAction {
         public void update(@NotNull AnActionEvent e) {
             // 只在有待应用的修改时启用此操作
             e.getPresentation().setEnabled(lastSuggestion != null && lastEditor != null);
+//            e.getPresentation().setEnabled(true);
         }
     }
 }
