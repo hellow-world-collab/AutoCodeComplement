@@ -13,6 +13,7 @@ import org.jetbrains.annotations.NotNull;
  * 插件组件，用于初始化 Tab 键处理器和输入监听
  */
 public class LLMPluginComponent implements ProjectComponent {
+
     private final Project project;
     private EditorActionHandler originalTabHandler;
     private TypedActionHandler originalTypedHandler;

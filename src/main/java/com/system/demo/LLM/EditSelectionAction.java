@@ -70,10 +70,10 @@ public class EditSelectionAction extends AnAction {
 
             String prompt;
             if ("CommentSelectionWithAI".equalsIgnoreCase(actionId)) {
-                // Shift + Alt + 3 → 给代码加注释
+                // Shift + Alt + 3  给代码加注释
                 prompt = EditorContextUtils.buildContextPromptForComment(file, selectedText);
             } else {
-                // 默认：Shift + Alt + 1 → 改进代码
+                // 默认：Shift + Alt + 1  改进代码
                 prompt = EditorContextUtils.buildContextPrompt(file, selectedText);
             }
 
@@ -102,6 +102,7 @@ public class EditSelectionAction extends AnAction {
      * 清理 LLM 返回的建议内容
      */
     private String cleanSuggestion(String suggestion) {
+
         // 去除 markdown 代码块标记
         suggestion = suggestion.replaceAll("```[a-zA-Z]*\\n?", "");
         suggestion = suggestion.replaceAll("```", "");
@@ -304,7 +305,6 @@ public class EditSelectionAction extends AnAction {
         }
 
         Document doc = lastEditor.getDocument();
-
         // 应用修改前先恢复编辑权限
         restoreEditorEditability();
 
@@ -335,7 +335,6 @@ public class EditSelectionAction extends AnAction {
         public void update(@NotNull AnActionEvent e) {
             // 只在有待应用的修改时启用此操作
             e.getPresentation().setEnabled(lastSuggestion != null && lastEditor != null);
-//            e.getPresentation().setEnabled(true);
         }
     }
 }

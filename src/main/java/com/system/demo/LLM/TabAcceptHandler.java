@@ -3,14 +3,13 @@ package com.system.demo.LLM;
 import com.intellij.openapi.actionSystem.DataContext;
 import com.intellij.openapi.editor.Editor;
 import com.intellij.openapi.editor.actionSystem.EditorActionHandler;
-import com.intellij.openapi.editor.actionSystem.EditorActionManager;
-import com.intellij.openapi.editor.actionSystem.TypedActionHandler;
 import org.jetbrains.annotations.NotNull;
 
 /**
  * 处理 Tab 键接受补全
  */
 public class TabAcceptHandler extends EditorActionHandler {
+
     private final EditorActionHandler originalHandler;
 
     public TabAcceptHandler(EditorActionHandler originalHandler) {
@@ -19,6 +18,7 @@ public class TabAcceptHandler extends EditorActionHandler {
 
     @Override
     public void execute(@NotNull Editor editor, DataContext dataContext) {
+
         if (LLMInlineCompletionManager.hasSuggestion()) {
             LLMInlineCompletionManager.accept(editor);
         } else if (originalHandler != null) {

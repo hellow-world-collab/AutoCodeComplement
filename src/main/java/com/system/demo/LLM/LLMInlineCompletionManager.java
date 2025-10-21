@@ -27,7 +27,7 @@ public class LLMInlineCompletionManager {
             currentInlay = model.addInlineElement(offset, true, new SimpleInlayRenderer(suggestion));
         });
     }
-
+    // 移除旧的建议补全
     public static void removeInlineSuggestion() {
         if (currentInlay != null && currentInlay.isValid()) {
             currentInlay.dispose();
