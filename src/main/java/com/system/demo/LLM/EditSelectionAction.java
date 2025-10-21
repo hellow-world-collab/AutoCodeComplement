@@ -14,10 +14,18 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.PsiFile;
 import com.system.demo.utils.EditorContextUtils;
 import org.jetbrains.annotations.NotNull;
+import com.github.difflib.DiffUtils;
+import com.github.difflib.patch.AbstractDelta;
+import com.github.difflib.patch.DeltaType;
+import com.github.difflib.patch.Patch;
 
 import javax.swing.*;
+import javax.swing.text.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
+import java.util.Arrays;
+import java.util.List;
+
 
 /**
  * 选中代码发送到 LLM → 弹窗显示差异（模态对话框） → 用户确认应用
@@ -145,33 +153,75 @@ public class EditSelectionAction extends AnAction {
                     .put("APPLY_AI_EDIT", new AbstractAction() {
                         @Override
                         public void actionPerformed(ActionEvent e) {
-                            applyChanges(); // 立即执行替换
-                            close(OK_EXIT_CODE); // 然后关闭窗口
+                            applyChanges();
+                            close(OK_EXIT_CODE);
                         }
                     });
         }
 
         @Override
         protected JComponent createCenterPanel() {
-            // 创建一个水平分割面板：左侧原代码，右侧 AI 建议
-            JSplitPane splitPane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
-            splitPane.setResizeWeight(0.5);
+            JTextPane diffPane = new JTextPane();
+            diffPane.setEditable(false);
+            diffPane.setFont(new Font("Monospaced", Font.PLAIN, 13));
 
-            JTextArea leftArea = new JTextArea(original);
-            leftArea.setEditable(false);
-            leftArea.setFont(new Font("Monospaced", Font.PLAIN, 13));
+            // 构建高亮样式
+            StyledDocument doc = diffPane.getStyledDocument();
+            SimpleAttributeSet normal = new SimpleAttributeSet();
+            SimpleAttributeSet added = new SimpleAttributeSet();
+            SimpleAttributeSet removed = new SimpleAttributeSet();
 
-            JTextArea rightArea = new JTextArea(modified);
-            rightArea.setEditable(false);
-            rightArea.setFont(new Font("Monospaced", Font.PLAIN, 13));
+            StyleConstants.setBackground(added, new Color(220, 255, 220));  // 绿色背景
+            StyleConstants.setBackground(removed, new Color(255, 220, 220)); // 红色背景
+            StyleConstants.setForeground(added, new Color(0, 120, 0));
+            StyleConstants.setForeground(removed, new Color(160, 0, 0));
 
-            splitPane.setLeftComponent(new JScrollPane(leftArea));
-            splitPane.setRightComponent(new JScrollPane(rightArea));
+            try {
+                List<String> origLines = Arrays.asList(original.split("\n"));
+                List<String> modLines = Arrays.asList(modified.split("\n"));
+
+                Patch<String> patch = DiffUtils.diff(origLines, modLines);
+
+                int currentLine = 0;
+                for (AbstractDelta<String> delta : patch.getDeltas()) {
+                    // 添加未变化部分
+                    while (currentLine < delta.getSource().getPosition()) {
+                        doc.insertString(doc.getLength(), origLines.get(currentLine) + "\n", normal);
+                        currentLine++;
+                    }
+
+                    if (delta.getType() == DeltaType.DELETE || delta.getType() == DeltaType.CHANGE) {
+                        for (String line : delta.getSource().getLines()) {
+                            doc.insertString(doc.getLength(), "- " + line + "\n", removed);
+                        }
+                    }
+
+                    if (delta.getType() == DeltaType.INSERT || delta.getType() == DeltaType.CHANGE) {
+                        for (String line : delta.getTarget().getLines()) {
+                            doc.insertString(doc.getLength(), "+ " + line + "\n", added);
+                        }
+                    }
+
+                    currentLine = delta.getSource().getPosition() + delta.getSource().size();
+                }
+
+                // 添加剩余未变化部分
+                while (currentLine < origLines.size()) {
+                    doc.insertString(doc.getLength(), origLines.get(currentLine) + "\n", normal);
+                    currentLine++;
+                }
+
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+
+            JScrollPane scrollPane = new JScrollPane(diffPane);
+            scrollPane.setPreferredSize(new Dimension(900, 600));
 
             JPanel panel = new JPanel(new BorderLayout());
-            panel.add(splitPane, BorderLayout.CENTER);
+            panel.add(scrollPane, BorderLayout.CENTER);
 
-            JLabel tip = new JLabel("← 原代码 | AI 修改建议 →");
+            JLabel tip = new JLabel("红色：删除 | 绿色：新增 | 其余：未变化");
             tip.setHorizontalAlignment(SwingConstants.CENTER);
             tip.setBorder(BorderFactory.createEmptyBorder(5, 0, 5, 0));
             panel.add(tip, BorderLayout.NORTH);
@@ -181,7 +231,6 @@ public class EditSelectionAction extends AnAction {
 
         @Override
         protected Action @NotNull [] createActions() {
-            // 自定义按钮
             return new Action[]{
                     new ApplyAction(),
                     new CancelAction()
@@ -228,6 +277,7 @@ public class EditSelectionAction extends AnAction {
             restoreEditorEditability();
         }
     }
+
 
     /**
      * 恢复编辑器的可编辑状态

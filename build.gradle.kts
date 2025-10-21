@@ -14,6 +14,7 @@ repositories {
 dependencies {
     implementation("org.json:json:20240303")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+    implementation("io.github.java-diff-utils:java-diff-utils:4.12")
 }
 // Configure Gradle IntelliJ Plugin
 intellij {
