@@ -17,23 +17,51 @@ public class EditorContextUtils {
         return selectionModel.getSelectedText();
     }
 
-     // 构建带上下文的 prompt （改进代码功能）
     public static String buildContextPrompt(PsiFile file, String selectedText) {
         String fileContent = getFullFileText(file);
-        return "这是完整文件内容：\n"
-                + fileContent
-                + "\n\n请参考整个上下文，改进下面选中的代码片段：\n"
-                + selectedText
-                + "\n\n要求：保持逻辑一致，但提高可读性和性能。（只返回代码，不要解释）";
+        String fileName = getFileName(file);
+
+        return String.format(
+                "你是一个专业的代码助手。请分析以下代码并给出改进建议。\n\n" +
+                        "文件: %s\n" +
+                        "完整文件内容（仅作上下文参考）:\n" +
+                        "```\n%s\n```\n\n" +
+                        "需要改进的选中代码:\n" +
+                        "```\n%s\n```\n\n" +
+                        "重要要求:\n" +
+                        "1. 只返回改进后的代码片段，不要返回整个文件\n" +
+                        "2. 保持代码逻辑不变，主要改进：代码风格、可读性、性能\n" +
+                        "3. 不要添加额外的解释或注释（除非必要）\n" +
+                        "4. 不要使用 markdown 代码块标记\n" +
+                        "5. 确保改进后的代码可以直接替换原选中代码\n" +
+                        "6. 如果选中代码是方法的一部分，确保参数和返回值一致\n" +
+                        "7. 保持相同的缩进和代码风格",
+                fileName, fileContent, selectedText
+        );
     }
-    // 给代码加注释功能
+
     public static String buildContextPromptForComment(PsiFile file, String selectedText) {
         String fileContent = getFullFileText(file);
-        return "这是完整文件内容：\n"
-                + fileContent
-                + "\n\n请参考整个上下文，给下面代码片段加注释：\n"
-                + selectedText
-                + "\n\n要求：保持逻辑一致，但提高可读性和性能。（只返回代码，不要解释）";
+        String fileName = getFileName(file);
+
+        return String.format(
+                "你是一个专业的代码助手。请为以下代码添加清晰的注释。\n\n" +
+                        "文件: %s\n" +
+                        "完整文件内容（仅作上下文参考）:\n" +
+                        "```\n%s\n```\n\n" +
+                        "需要添加注释的选中代码:\n" +
+                        "```\n%s\n```\n\n" +
+                        "重要要求:\n" +
+                        "1. 只返回添加注释后的代码片段，不要返回整个文件\n" +
+                        "2. 保持原代码逻辑完全不变\n" +
+                        "3. 为方法/类添加文档注释（JavaDoc风格）\n" +
+                        "4. 为关键逻辑添加行内注释\n" +
+                        "5. 注释要简洁、有用，避免废话\n" +
+                        "6. 不要使用 markdown 代码块标记\n" +
+                        "7. 确保注释后的代码可以直接替换原选中代码\n" +
+                        "8. 保持相同的缩进和代码风格",
+                fileName, fileContent, selectedText
+        );
     }
 
     // 获取文件名

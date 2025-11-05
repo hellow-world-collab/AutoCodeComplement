@@ -15,11 +15,17 @@
 - **自动触发**：输入时自动显示灰色补全建议
 - **Tab 键接受**：按 Tab 键接受当前建议
 
-#### 2. 🔧 代码分析与优化
+#### 2. 🔧 代码分析与优化（双重操作模式）
 - **Shift + Alt + 1**：将选中代码发送给 AI 分析和优化
 - **Shift + Alt + 3**：为选中代码添加专业注释
-- **Diff 对比**：专业的差异对比视图
-- **Shift + Alt + 2**：应用 AI 的修改建议
+- **内联 Diff + 双重控制**：完全仿照 VS Code 体验
+  - 🔴 红色 + 删除线 = 原代码（将被删除）
+  - 🟢 绿色背景 = AI 建议的新代码
+  - 🟢 侧边栏绿点 = 点击弹出局部 Keep/Undo 菜单
+  - 🛠️ 底部工具栏 = 全局 Keep/Undo/导航按钮
+  - 📊 状态显示 = "差异: 1 / 5"
+  - ⌨️ 快捷键 = Ctrl+Shift+Y (Keep) / Ctrl+N (Undo)
+  - ✏️ 完全非阻塞，随时可编辑
 
 ### 快速开始
 
@@ -81,12 +87,13 @@
 - ✅ **代理支持**：内置 HTTP 代理配置（127.0.0.1:7897）
 - ✅ **请求取消**：自动取消过期的 API 请求
 - ✅ **异步处理**：后台线程调用 API，不阻塞 UI
-- ✅ **模态对话框**：查看差异时锁定编辑器，防止误操作
+- ✅ **双重控制 Diff**：侧边栏绿点+底部工具栏，局部/全局双重操作
 - ✅ **智能清理**：自动清理 Markdown 代码块标记
 
 ### 文档
 
 - 📖 [详细使用说明](USAGE.md)
+- 🛠️ [工具栏差异显示指南](DIFF_TOOLBAR_GUIDE.md) ⭐ VS Code 风格
 - 📋 [项目总结](PROJECT_SUMMARY.md)
 - 🏗️ [架构设计文档](ARCHITECTURE.md)
 - ⚡ [快速参考卡片](QUICK_REFERENCE.md)
@@ -111,11 +118,17 @@ An intelligent code assistant plugin for PyCharm 2019.3.5 Community Edition, pow
 - **Auto-trigger**: Shows gray inline suggestions while typing
 - **Tab to accept**: Press Tab to accept suggestions
 
-#### 2. 🔧 Code Analysis & Refactoring
+#### 2. 🔧 Code Analysis & Refactoring (Dual Control Mode)
 - **Shift + Alt + 1**: Send selected code to AI for analysis and optimization
 - **Shift + Alt + 3**: Add professional comments to selected code
-- **Diff View**: Professional diff comparison view
-- **Shift + Alt + 2**: Apply AI suggestions
+- **Inline Diff + Dual Control**: Fully mimics VS Code experience
+  - 🔴 Red + strikeout = Original code (to be deleted)
+  - 🟢 Green background = AI suggested code
+  - 🟢 Gutter green dot = Click to popup local Keep/Undo menu
+  - 🛠️ Bottom toolbar = Global Keep/Undo/Navigation buttons
+  - 📊 Status display = "Changes: 1 / 5"
+  - ⌨️ Shortcuts = Ctrl+Shift+Y (Keep) / Ctrl+N (Undo)
+  - ✏️ Fully non-blocking, edit anytime
 
 ### Quick Start
 
@@ -177,12 +190,13 @@ Supports all services compatible with OpenAI Chat Completions API format:
 - ✅ **Proxy Support**: Built-in HTTP proxy configuration (127.0.0.1:7897)
 - ✅ **Request Cancellation**: Auto-cancel outdated API requests
 - ✅ **Async Processing**: Background threads for API calls, non-blocking UI
-- ✅ **Modal Dialogs**: Lock editor while viewing diffs to prevent accidental edits
+- ✅ **Dual Control Diff**: Gutter green dots + bottom toolbar, local/global dual operations
 - ✅ **Smart Cleanup**: Auto-remove Markdown code block markers
 
 ### Documentation
 
 - 📖 [Detailed Usage Guide](USAGE.md)
+- 🛠️ [Toolbar Diff Guide](DIFF_TOOLBAR_GUIDE.md) ⭐ VS Code Style
 - 📋 [Project Summary](PROJECT_SUMMARY.md)
 - 🏗️ [Architecture Design](ARCHITECTURE.md)
 - ⚡ [Quick Reference Card](QUICK_REFERENCE.md)
