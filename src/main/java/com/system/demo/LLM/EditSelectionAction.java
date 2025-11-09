@@ -1,5 +1,8 @@
 package com.system.demo.LLM;
 
+import com.github.difflib.DiffUtils;
+import com.github.difflib.patch.AbstractDelta;
+import com.github.difflib.patch.Patch;
 import com.intellij.openapi.actionSystem.ActionManager;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
@@ -11,6 +14,9 @@ import com.intellij.openapi.ui.Messages;
 import com.intellij.psi.PsiFile;
 import com.system.demo.utils.EditorContextUtils;
 import org.jetbrains.annotations.NotNull;
+
+import java.util.Arrays;
+import java.util.List;
 
 
 /**
@@ -62,10 +68,33 @@ public class EditSelectionAction extends AnAction {
             String context = EditorContextUtils.getFullFileText(file) + "\n// Selected:\n" + selectedText;
             String suggestion = LLMClient.queryLLM(prompt, context);
 
-            if (suggestion == null || suggestion.isEmpty()) {
-                Messages.showWarningDialog(project, "模型未返回结果。", "提示");
+            // 更细致的空结果处理
+            if (suggestion == null) {
+                // 网络错误或其他问题
+                Messages.showErrorDialog(project, "请求失败，请检查网络连接和API配置", "错误");
                 return;
             }
+
+            if (suggestion.isEmpty()) {
+                // 模型返回空字符串，可能表示代码无需修改
+                int result = Messages.showYesNoDialog(project,
+                        "AI 分析后认为当前代码无需改进。\n是否显示原始代码对比？",
+                        "无需改进",
+                        Messages.getQuestionIcon());
+
+                if (result == Messages.YES) {
+                    // 显示原始代码的"无差异"对比
+                    showNoChangesDialog(project, selectedText);
+                }
+                return;
+            }
+
+// 检查建议是否与原始代码相同
+            if (isSuggestionIdentical(selectedText, suggestion)) {
+                Messages.showInfoMessage(project, "AI 建议与当前代码相同，无需修改", "提示");
+                return;
+            }
+
 
             // 清理建议内容
             String cleanedSuggestion = cleanSuggestion(suggestion);
@@ -76,7 +105,35 @@ public class EditSelectionAction extends AnAction {
             });
         }).start();
     }
+    /**
+     * 检查建议是否与原始代码相同
+     */
+    private boolean isSuggestionIdentical(String original, String suggestion) {
+        if (original == null || suggestion == null) return false;
 
+        // 标准化比较：去除空白差异
+        String normalizedOriginal = original.replaceAll("\\s+", " ").trim();
+        String normalizedSuggestion = suggestion.replaceAll("\\s+", " ").trim();
+
+        return normalizedOriginal.equals(normalizedSuggestion);
+    }
+
+    /**
+     * 显示无差异对话框
+     */
+    private void showNoChangesDialog(Project project, String originalCode) {
+        String message = String.format(
+                "<html><body>" +
+                        "<b>AI 分析结果：代码无需改进</b><br><br>" +
+                        "当前选中的代码已经具有良好的质量。<br><br>" +
+                        "<b>选中的代码：</b><br>" +
+                        "<pre style='background: #f5f5f5; padding: 10px; border-radius: 3px;'>%s</pre>" +
+                        "</body></html>",
+                originalCode.replace("<", "&lt;").replace(">", "&gt;")
+        );
+
+        Messages.showMessageDialog(project, message, "无需改进", Messages.getInformationIcon());
+    }
     /**
      * 清理 LLM 返回的建议内容
      */
@@ -125,13 +182,29 @@ public class EditSelectionAction extends AnAction {
      * 显示差异对比 - 现代化内联显示（类似 VS Code）
      */
     private void showDiffDialog(Project project, String original, String modified) {
-        // 使用现代化 diff 渲染器
-        // 特点：
-        // 1. 底部工具栏显示 Keep/Undo 按钮和导航
-        // 2. 高亮显示差异（红色+删除线 vs 绿色）
-        // 3. 支持快捷键操作
+        System.out.println("=== 差异分析 ===");
+        System.out.println("原始代码:");
+        System.out.println(original);
+        System.out.println("AI建议代码:");
+        System.out.println(modified);
+        System.out.println("选中范围: [" + lastSelectionStart + ", " + lastSelectionEnd + "]");
+
+        // 计算差异
+        List<String> originalLines = Arrays.asList(original.split("\n"));
+        List<String> modifiedLines = Arrays.asList(modified.split("\n"));
+        Patch<String> patch = DiffUtils.diff(originalLines, modifiedLines);
+
+        System.out.println("发现 " + patch.getDeltas().size() + " 个差异块:");
+        for (AbstractDelta<String> delta : patch.getDeltas()) {
+            System.out.println("类型: " + delta.getType() +
+                    ", 原位置: " + delta.getSource().getPosition() +
+                    ", 新位置: " + delta.getTarget().getPosition() +
+                    ", 原行数: " + delta.getSource().size() +
+                    ", 新行数: " + delta.getTarget().size());
+        }
+
         ModernDiffRenderer diffRenderer = new ModernDiffRenderer(
-            lastEditor, project, original, modified, lastSelectionStart, lastSelectionEnd
+                lastEditor, project, original, modified, lastSelectionStart, lastSelectionEnd
         );
         diffRenderer.render();
     }
